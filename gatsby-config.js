@@ -4,6 +4,7 @@ module.exports = {
     description: `web ui for maxsr hardware`,
     author: `tnxa`,
   },
+  pathPrefix: `/mosa`,
   plugins: [
     `gatsby-plugin-react-helmet`,
     {

@@ -23,7 +23,9 @@ export const MosaRandomControl = props => {
   const [availableStrokes, setAvailableStrokes] = useState(strokes) // start with all strokes enabled by default
 
   const [timer, setTimer] = useState(0) // start with no seconds on the clock
+  const [startTime, setStartTime] = useState(0)
   const [step, setStep] = useState(50)
+  const [speed, setSpeed] = useState(100)
   const [randomness, setRandomness] = useState(30)
   const [strokeType, setStrokeType] = useState(
     chooseRandomStroke(availableStrokes)
@@ -40,22 +42,25 @@ export const MosaRandomControl = props => {
             ? chooseRandomStroke(availableStrokes) // todo: refactor this
             : strokeType
 
-        const stroke = newStrokeType.getStroke(target, step)
+        const stroke = newStrokeType.getStroke(target, speed/100, step)
         const newTimer = step * stroke.length // derive next timing from length of stroke
 
         setStrokeType(newStrokeType)
         setStroke(stroke)
         setTimer(newTimer) // add time to the timer
+        setStartTime(new Date().getTime())
         setStrokeCounter(strokeCounter + 1)
       } else {
         // execute the next stroke step
-        const destination = stroke[0]
+        // It's not guaranteed we run at [step] interval, so look at actual time.
+        let curStepNr = Math.floor((new Date().getTime() - startTime) / step)
+        curStepNr = curStepNr < stroke.length ? curStepNr : stroke.length - 1
+        const destination = stroke[curStepNr]
         commandRobot(destination, step / 1000)
-        setStroke(stroke.slice(1))
-        setTimer(timer - step) // subtract time from the timer
+        setTimer(step * (stroke.length - curStepNr - 1))
       }
     } // if not running & connected, no-op
-  }, step) // next execution time will be `step` away
+  }, [step]) // next execution time will be about `step` ms away
 
   const toggleRunning = running => {
     running ? setTimer(0) : setStrokeCounter(0)
@@ -84,6 +89,15 @@ export const MosaRandomControl = props => {
           max={100}
           valueLabelDisplay={'auto'}
           onChange={(e, value) => setRandomness(value)}
+        />
+        <Typography>Speed: {speed}%</Typography>
+        <Slider
+          value={speed}
+          min={20}
+          max={500}
+          step={1}
+          valueLabelDisplay={'auto'}
+          onChange={(e, value) => setSpeed(value)}
         />
         <Typography>Update Frequency</Typography>
         <Slider

@@ -12,8 +12,8 @@ export const strokes = {
   ShortStrokes: {
     name: 'Short Stroke',
     enabled: true,
-    getStroke: (position, step) => {
-      const strokeTime = 800 // .8 seconds
+    getStroke: (position, speed, step) => {
+      const strokeTime = 800 / speed // .8 seconds
       const distanceFactor = 0.5
 
       const steps = strokeTime / step
@@ -65,8 +65,8 @@ export const strokes = {
   LongStrokes: {
     name: 'Long Stroke',
     enabled: true,
-    getStroke: (position, step) => {
-      const strokeTime = 800 // .8 seconds
+    getStroke: (position, speed, step) => {
+      const strokeTime = 800 / speed // .8 seconds
       const distanceFactor = 0.9
 
       const steps = strokeTime / step
@@ -118,7 +118,7 @@ export const strokes = {
   LongJerky: {
     name: 'Long Jerk',
     enabled: true,
-    getStroke: (position, step) => {
+    getStroke: (position, speed, step) => {
       const maxPercentTravel = 0.75
       const jerk = 0.01 // todo: leverage some function of this to gently accel/decel
 
@@ -146,10 +146,10 @@ export const strokes = {
 
       // condition based on direction; loop until we pass destination
       while (direction > 0 ? pL0 < fL0 : pL0 > fL0) {
-        acceleration += direction * jerk * step
+        acceleration += direction * jerk * step * speed
         velocity += acceleration + (1 / 2) * direction * jerk * step
 
-        rotationalAcceleration += twistDirection * jerk * step
+        rotationalAcceleration += twistDirection * jerk * step * speed
         rotationalVelocity +=
           rotationalAcceleration + (1 / 2) * twistDirection * jerk * step
 
@@ -186,8 +186,8 @@ export const strokes = {
   Orbit: {
     name: 'Orbit',
     enabled: true,
-    getStroke: (position, step) => {
-      const strokeTime = 1 + 3 * Math.random() * 1000 // 1-4 seconds
+    getStroke: (position, speed, step) => {
+      const strokeTime = (1 + 3 * Math.random() * 1000) / speed // 1-4 seconds
       const steps = strokeTime / step
       const oL0 = position.L0,
         oR0 = position.R0,
@@ -207,14 +207,18 @@ export const strokes = {
 
       for (let i = 1; i <= steps; i++) {
         // choose next points
-        const nL0 = pL0 + 5 * Math.cos((i / steps) * Math.PI),
+        const nL0 = clampedNum(
+            pL0 + speed * 5 * Math.cos((i / steps) * Math.PI) + (pL0 < 500 ? 20 / steps : -20 / steps),
+            0,
+            1000
+          ),
           nR0 = clampedNum(
-            pR0 + R0dir * 30 * Math.sin((i / steps) * 2 * Math.PI),
+            pR0 + speed * R0dir * 30 * Math.sin((i / steps) * 2 * Math.PI),
             0,
             1000
           ), // todo: improve this
-          nR1 = pR1 + R1dir * 20 * Math.cos((i / steps) * 2 * Math.PI),
-          nR2 = pR2 + R2dir * 15 * Math.sin((i / steps) * 2 * Math.PI) // can we find a way to center this?
+          nR1 = pR1 + speed * R1dir * 20 * Math.cos((i / steps) * 2 * Math.PI),
+          nR2 = pR2 + speed * R2dir * 15 * Math.sin((i / steps) * 2 * Math.PI) // can we find a way to center this?
 
         // append next to stroke points
         stroke.push({
@@ -237,8 +241,8 @@ export const strokes = {
   Hops: {
     name: 'Hops',
     enabled: true,
-    getStroke: (position, step) => {
-      const strokeTime = 1 + 3 * Math.random() * 1000 // 1-4 seconds
+    getStroke: (position, speed, step) => {
+      const strokeTime = 1 + 3 * Math.random() * 1000 / speed // 1-4 seconds
       const steps = strokeTime / step
       const oL0 = position.L0,
         oR0 = position.R0,
@@ -260,17 +264,17 @@ export const strokes = {
         // choose next points
         const x = (i / steps) * Math.PI
         const nL0 = clampedNum(
-            pL0 + 50 * ((Math.sin(x) * Math.cos(x)) / Math.abs(Math.sin(x))),
+            pL0 + speed * 50 * ((Math.sin(x) * Math.cos(x)) / Math.abs(Math.sin(x))),
             0,
             1000
           ),
           nR0 = clampedNum(
-            pR0 + R0dir * 15 * Math.sin((i / steps) * 2 * Math.PI),
+            pR0 + speed * R0dir * 15 * Math.sin((i / steps) * 2 * Math.PI),
             0,
             1000
           ), // todo: improve this
-          nR1 = pR1 + R1dir * 20 * Math.cos((i / steps) * 2 * Math.PI),
-          nR2 = pR2 + R2dir * 15 * Math.sin((i / steps) * 2 * Math.PI) // can we find a way to center this?
+          nR1 = pR1 + speed * R1dir * 20 * Math.cos((i / steps) * 2 * Math.PI),
+          nR2 = pR2 + speed * R2dir * 15 * Math.sin((i / steps) * 2 * Math.PI) // can we find a way to center this?
 
         // append next to stroke points
         stroke.push({
@@ -286,6 +290,42 @@ export const strokes = {
         pR1 = nR1
         pR2 = nR2
       }
+      return stroke
+    },
+  },
+  DoubleSine: {
+    name: 'Double Sine',
+    enabled: true,
+    getStroke: (position, speed, step) => {
+      const strokeTime = 6000 / speed // 6 seconds
+      const bigStrokeAmpl = (500 - Math.abs(500 - position.L0)) / 500 * 350
+      const smallStrokeAmpl = 150
+      const smallStrokes = 7 + Math.floor(Math.random() * 3) * 2
+      const nods = 2 + Math.floor(Math.random() * 3)
+      const bends = 2 + Math.floor(Math.random() * 3)
+
+      const steps = Math.floor(strokeTime / step)
+
+      let stroke = []
+
+      for (let i = 1; i <= steps; i++) {
+        let q = i / steps
+        let w = Math.sqrt(q)
+        let nL0 = (1 - w) * position.L0 + w * 500 +
+                  Math.cbrt(Math.sin(q * Math.PI * 2)) * bigStrokeAmpl +
+                  Math.sin(q * smallStrokes * Math.PI * 2) * smallStrokeAmpl
+        let nR1 = (1 - w) * position.R1 + w * 500 +
+                  Math.sin(q * Math.PI * 2 * nods) * 500
+        let nR2 = (1 - w) * position.R2 + w * 500 +
+                  Math.sin(q * Math.PI * 2 * bends) * 500
+        if(i === steps) { nL0 = 500; nR1 = 500; nR2 = 500 }
+        stroke.push({
+          L0: clampedNum(nL0, 0, 1000),
+          R1: clampedNum(nR1, 0, 1000),
+          R2: clampedNum(nR2, 0, 1000)
+        })
+      }
+
       return stroke
     },
   },

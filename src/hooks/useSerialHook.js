@@ -82,7 +82,7 @@ export const useSerial = () => {
         console.log('[OSR][SEND]', line, '\n')
         writer.write(line + '\n')
       })
-      writer.releaseLock()
+      if(outputStream.locked) writer.releaseLock();
     } else {
       console.warn('[OSR][WARN] Disconnected, skipping stream write')
     }

@@ -1,5 +1,26 @@
 # mosa
 
+This is a fork of https://github.com/tnxa/mosa
+
+New features
+- video and (multi axis) funscript playback
+  - best go to "Videoscript" page (via burger menu at left top)
+  - choose file from dropdown list
+  - currently, for adding own videos, you need to run the software locally
+  - put videos and scripts in the static/video folder
+  - add static/video/videos.txt listing video files
+- very simple funscript editing/authoring
+  - keys 1-9 to input position at current time in video
+  - 0 to delete events from 1000ms in the past up to 500ms in the future, then skip back 3000ms ("quick fix")
+  - change playback speed
+  - download and save script when done
+- "moving pauses" feature adding slow movement in case L0 is inactive in the funscript for some seconds
+- new random movement features
+  - speed adjustment in random movement
+  - new "Doubles sines" random movement
+
+## Upstream readme
+
 mosa is a tool you can use to send [t-code][t-code-spec] to a compatible device over serial using the [web serial API][webserial].
 
 In Google Chrome, you should be able to connect a device which accepts [t-code][t-code-spec] and then use web controls to send commands in a visual/intuitive way.
@@ -18,6 +39,8 @@ Once installation completes:
   browser. The page will reload if you make edits. You will also see any lint errors in the console.
 
 - to build the app for production, run `npm build`. This will build the app for production to the `build` folder, making some optimizations for the best performance. You can then run `npm run serve` to serve the production build locally.
+
+- to include a path prefix, run `PREFIX_PATHS=true npm run-script build`, and Gatsby will include the prefix path defined in gatsby-config.js.
 
 ## Context
 
