@@ -54,8 +54,9 @@ const Canvas = props => {
 export const MosaVideoPlayer = props => {
   const { connected, target, commandRobot } = props
 
-  const [current_file, setCurrentFile] = useState("")
+  const [current_file, setCurrentFile] = useState("none")
   const [video_files, setVideoFiles] = useState([])
+  const [local_video_files, setLocalVideoFiles] = useState({})
 
   const [running, setRunning] = useState(false)
   const [moving_pauses, setMovingPauses] = useState(true)
@@ -72,11 +73,12 @@ export const MosaVideoPlayer = props => {
 
   const [editing_axis, setEditingAxis] = useState("none")
 
-  const axes = [["L0", ".funscript"],
-                ["R2", ".pitch.funscript"],
+  const axes = [["R2", ".pitch.funscript"],
                 ["R1", ".roll.funscript"],
                 ["R0", ".twist.funscript"],
-                ["L1", ".forward.funscript"]];
+                ["L1", ".forward.funscript"],
+                ["A1", ".suck.funscript"],
+                ["L0", ".funscript"]];
 
   useInterval(() => {
     if (running) {
@@ -162,8 +164,39 @@ export const MosaVideoPlayer = props => {
     }
   }, 50) // next execution in 50ms
 
-  const setFile = file => {
-    let tmp = {};
+  async function setFile(file) {
+    function initVideo(filename, funscripts) {
+      setEditingAxis("none")
+      setCurrentFile(filename)
+      setFunscripts(funscripts)
+      let tmp2 = {};
+      for(let axis in funscripts) tmp2[axis] = 0
+      setScriptOffsets(tmp2)
+      tmp2 = {};
+      for(let axis in funscripts) if(funscripts[axis] !== undefined) tmp2[axis] = 500
+      setPosition({...tmp2})
+      let video = document.getElementById("idvideo")
+      video.play();
+      video.ondurationchange = (e) => setVideoLength(e.srcElement.duration * 1000)
+      video.ontimeupdate = (e) => setVideoPosition(e.srcElement.currentTime * 1000)
+    }
+
+    if(file in local_video_files) {
+      let fileItem = local_video_files[file]
+      document.getElementById("idvideo").src = URL.createObjectURL(await fileItem["entry"].getFile());
+      let funscripts = {}
+      for(let axis of axes) {
+        if(axis[0] in fileItem) {
+          let fh = await fileItem[axis[0]].getFile()
+          let txt = await fh.text()
+          funscripts[axis[0]] = JSON.parse(txt)
+        }
+      }
+      initVideo(file, funscripts)
+      return
+    }
+
+    let funscripts = {};
     document.getElementById("idvideo").src = `video/${file}`;
     let file_base = "video/" + file.replaceAll(".mp4", "");
     let fetches = [];
@@ -171,32 +204,59 @@ export const MosaVideoPlayer = props => {
       fetches.push(
         fetch(file_base + axis[1], { headers : { 'Content-Type': 'application/json', 'Accept': 'application/json' } } ).then(
           (res) => res.json().then(
-            (json) => tmp[axis[0]] = json
+            (json) => funscripts[axis[0]] = json
           ).catch(
-            (err) => { console.log(err); tmp[axis[0]] = undefined; }
+            (err) => { console.log(err); funscripts[axis[0]] = undefined; }
           )
         ).catch(
-            (err) => { console.warn(err); tmp[axis[0]] = undefined; }
+            (err) => { console.warn(err); funscripts[axis[0]] = undefined; }
           )
       )
     }
     Promise.allSettled(fetches).then(
-        () => {
-            setEditingAxis("none")
-            setCurrentFile(file)
-            setFunscripts(tmp)
-            let tmp2 = {};
-            for(let axis in tmp) tmp2[axis] = 0
-            setScriptOffsets(tmp2)
-            tmp2 = {};
-            for(let axis in tmp) if(tmp[axis] !== undefined) tmp2[axis] = 500
-            setPosition({...tmp2})
-            let video = document.getElementById("idvideo")
-            video.play();
-            video.ondurationchange = (e) => setVideoLength(e.srcElement.duration * 1000)
-            video.ontimeupdate = (e) => setVideoPosition(e.srcElement.currentTime * 1000)
-        }
+        () => { initVideo(file, funscripts) }
     );
+  }
+
+  async function openLocalFolder() {
+    if(!window.hasOwnProperty("showDirectoryPicker")) {
+      window.alert("Your browser does not support the File Syste API")
+      return
+    }
+    const dirHandle = await window.showDirectoryPicker()
+    let videoFiles = {}
+    for await (const entry of dirHandle.values()) {
+      if(entry.kind === 'file') {
+        if(entry.name.endsWith(".mp4")) {
+          if(entry.name in videoFiles) {
+            videoFiles[entry.name]["entry"] = entry
+          } else {
+            videoFiles[entry.name] = {"name": entry.name, "entry": entry}
+          }
+          continue
+        }
+        if(entry.name.endsWith(".funscript")) {
+          for(let axis of axes) {
+            if(entry.name.endsWith(axis[1])) {
+              let name = entry.name.replaceAll(axis[1], ".mp4")
+              if(name in videoFiles) {
+                videoFiles[name][axis[0]] = entry
+              } else {
+                videoFiles[name] = {"name": name, [axis[0]]: entry}
+              }
+              break
+            }
+          }
+        }
+      }
+    }
+    let videos = []
+    for(let e of Object.keys(videoFiles)) {
+      videos.push(e)
+    }
+    videos.sort()
+    setVideoFiles(videos)
+    setLocalVideoFiles(videoFiles)
   }
 
   const setEditAxis = axis => {
@@ -290,10 +350,18 @@ export const MosaVideoPlayer = props => {
         {editing_axis !== "none" ? <Canvas vpos={video_position} funscripts={funscripts} axis={editing_axis} totalTime={video_length}></Canvas> : ""}
       </CardContent>
       <Typography>File</Typography>
+      <Button
+        onClick={() => openLocalFolder()}
+        variant="contained"
+        color="default"
+      >
+        Open Client Video Folder
+      </Button>
       <Select
         id="idselect"
         value={current_file}
         onChange={(e, value) => setFile(value.props.value)}>
+        <MenuItem value="none" key="none">no video</MenuItem>
         {video_files.map((f) => (
           <MenuItem value={f} key={f} >{f}</MenuItem>
         ))}
