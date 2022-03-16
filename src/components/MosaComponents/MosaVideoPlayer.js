@@ -235,9 +235,13 @@ export const MosaVideoPlayer = props => {
       let tmp = {...funscripts}
       let player = document.getElementById("idvideo")
       let current_msecs = player.currentTime * 1000 - latency
-      tmp[editing_axis]["actions"] = tmp[editing_axis]["actions"].filter( (e) => e["at"] < current_msecs - 1000 || e["at"] > current_msecs + 500)
+      tmp[editing_axis]["actions"] = tmp[editing_axis]["actions"].filter( (e) => e["at"] < current_msecs - 1500 || e["at"] > current_msecs + 1500)
       setFunscripts(tmp)
-      player.currentTime = current_msecs / 1000 - 3
+      player.currentTime = (current_msecs - 3000 + latency) / 1000
+    }
+    const speed_key_dict = { 'q': 10, 'w': 25, 'e': 50, 'r': 100, 't': 200 }
+    if(key in speed_key_dict) {
+      selectVideoSpeed(speed_key_dict[key])
     }
   }
 
@@ -302,6 +306,7 @@ export const MosaVideoPlayer = props => {
         <MenuItem value="25" key="25">25%</MenuItem>
         <MenuItem value="50" key="50">50%</MenuItem>
         <MenuItem value="100" key="100">100%</MenuItem>
+        <MenuItem value="200" key="200">200%</MenuItem>
       </Select>
       <Select
         value={editing_axis}
