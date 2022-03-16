@@ -18,16 +18,16 @@ import { clampedFloat, clampedNum } from '../../utils/clamp'
 const Canvas = props => {
   const { funscripts, axis, totalTime, vpos, ...rest } = props
   const canvasRef = useRef(null)
-  const canvas_width = 20000
   const vis_width = 800
+  const canvas_width = 20000 + vis_width
 
   const draw = ctx => {
     ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height)
     ctx.fillStyle = '#000000'
     ctx.beginPath()
-    ctx.moveTo(0,50)
+    ctx.moveTo(vis_width / 2,50)
     for(let entry of funscripts[axis]["actions"]) {
-      let x = entry["at"] / totalTime * canvas_width
+      let x = entry["at"] / totalTime * (canvas_width - vis_width) + vis_width / 2
       let y = 100 - entry["pos"]
       ctx.lineTo(x, y)
     }
@@ -41,11 +41,11 @@ const Canvas = props => {
   }, [funscripts, axis, totalTime])
 
   useEffect(() => {
-    let scroll_left = Math.max(Math.floor(vpos / totalTime * canvas_width) - vis_width / 2, 0)
+    let scroll_left = Math.max(Math.floor(vpos / totalTime * (canvas_width - vis_width)), 0)
     document.getElementById("fiudfzdifu").scrollLeft = scroll_left
   }, [vpos, totalTime])
 
-  let stle = {maxHeight: '120px', maxWidth: vis_width + 'px', overflow: 'scroll'}
+  let stle = {maxHeight: '120px', maxWidth: vis_width + 'px', overflow: 'hidden'}
   return <div id="fiudfzdifu" style={stle}>
           <canvas width={canvas_width+"px"} height="100px" ref={canvasRef} {...rest}/>
          </div>
@@ -96,9 +96,10 @@ export const MosaVideoPlayer = props => {
           if(actions[prev_offset]["at"] > current_msecs) prev_offset = 0;
           let next_offset = prev_offset + 1;
           while(next_offset < actions.length && actions[next_offset]["at"] < current_msecs) next_offset++;
-          if(next_offset >= actions.length || next_offset < 1) continue;
+          if(next_offset < 1) continue;
           prev_offset = next_offset - 1;
-          if(actions[prev_offset]["at"] > current_msecs) continue;
+          if(next_offset >= actions.length) next_offset = prev_offset;
+          if(actions[prev_offset]["at"] > current_msecs) next_offset = prev_offset;
 
           let prev_action = actions[prev_offset];
           let next_action = actions[next_offset];
@@ -108,7 +109,9 @@ export const MosaVideoPlayer = props => {
             prev_val = 1000 - prev_val;
             next_val = 1000 - next_val;
           }
-          let where_in_interval = (current_msecs - prev_action["at"])*1.0 / (next_action["at"] - prev_action["at"])*1.0;
+          let where_in_interval = prev_offset !== next_offset ?
+                                  (current_msecs - prev_action["at"])*1.0 / (next_action["at"] - prev_action["at"])*1.0 :
+                                  0.5
           let mid_val = (1.0 - where_in_interval) * prev_val + where_in_interval * next_val;
 
           // if enabled, fill L0 pauses with slow motion
@@ -271,6 +274,7 @@ export const MosaVideoPlayer = props => {
     )
   })
 
+  let stle = {position: 'absolute', marginLeft: '399px', width: '2px', height: '100px', backgroundColor: 'grey'}
   return (
     <Card>
       <CardContent>
@@ -278,6 +282,7 @@ export const MosaVideoPlayer = props => {
         <hr />
         <video id="idvideo" width="100%" controls>
         </video>
+        {editing_axis !== "none" ? <div style={stle}/> : ""}
         {editing_axis !== "none" ? <Canvas vpos={video_position} funscripts={funscripts} axis={editing_axis} totalTime={video_length}></Canvas> : ""}
       </CardContent>
       <Typography>File</Typography>
