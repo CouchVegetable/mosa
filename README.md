@@ -5,14 +5,13 @@ This is a fork of https://github.com/tnxa/mosa
 New features
 - video and (multi axis) funscript playback
   - best go to "Videoscript" page (via burger menu at left top)
-  - choose file from dropdown list
-  - currently, for adding own videos, you need to run the software locally
-  - put videos and scripts in the static/video folder
-  - add static/video/videos.txt listing video files
+  - you can select videos from the server side or from your local machine
+    - for **playback from a local file folder**, click "Open Client Video Folder" button and select a folder containing MP4 videos and funscripts, then select a video from the dropdown list
+    - to add own videos to the **server side** of an instance of this software that you are running on an own machine, put videos and scripts in the static/video folder, and add a static/video/videos.txt file listing video files
 - very simple funscript editing/authoring
   - keys 1-9 to input position at current time in video
-  - 0 to delete events from 1000ms in the past up to 500ms in the future, then skip back 3000ms ("quick fix")
-  - change playback speed
+  - 0 to delete events from 1500ms in the past up to 1500ms in the future, then skip back 3000ms ("quick fix")
+  - change playback speed (via dropdown box or QWERT keys)
   - download and save script when done
 - "moving pauses" feature adding slow movement in case L0 is inactive in the funscript for some seconds
 - new random movement features
