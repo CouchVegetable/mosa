@@ -103,7 +103,7 @@ export const MosaProvider = ({ children }) => {
     setTarget(newTarget)
 
     // tell the robot what to do
-    const scaledDestination = scaleAxes(newTarget, mosaSettings)
+    const scaledDestination = scaleAxes(destination, mosaSettings)
     const command = constructTCodeCommand(scaledDestination, interval)
     switch (outputMethod) {
       case 'serial':

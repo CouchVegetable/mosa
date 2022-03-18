@@ -20,10 +20,18 @@ export const intervalTCode = interval => {
 // return tcode for all supplied axes in destination, with interval if supplied
 export const constructTCodeCommand = (destination, interval) => {
   // create tcode for each axis we have
-  const commands = Object.keys(destination).map(
-    axis =>
-      tCode(axis, destination[axis]) + (interval ? intervalTCode(interval) : '')
-  )
+  let commands = {}
+  if (typeof interval === 'object') {
+    commands = Object.keys(destination).map(
+      axis =>
+        tCode(axis, destination[axis]) + intervalTCode(interval[axis])
+    )
+  } else {
+    commands = Object.keys(destination).map(
+      axis =>
+        tCode(axis, destination[axis]) + (interval ? intervalTCode(interval) : '')
+    )
+  }
 
   return commands.join(' ')
 }

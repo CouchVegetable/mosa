@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Button,
   Card,
@@ -12,8 +12,27 @@ import {
   Typography,
 } from '@material-ui/core'
 
-import { useInterval } from '../../hooks/useIntervalHook'
 import { clampedFloat, clampedNum } from '../../utils/clamp'
+
+// callback can return a value and will get re-run after X ms then.
+function useTimeout(callback, delay) {
+  const timeoutRef = React.useRef(null);
+  const savedCallback = React.useRef(callback);
+  React.useEffect(() => {
+    savedCallback.current = callback;
+  }, [callback]);
+  React.useEffect(() => {
+    const tick = () => {
+      let next = savedCallback.current();
+      if(next) timeoutRef.current = window.setTimeout(tick, next);
+    }
+    if (typeof delay === 'number') {
+      timeoutRef.current = window.setTimeout(tick, delay);
+      return () => window.clearTimeout(timeoutRef.current);
+    }
+  }, [delay]);
+  return timeoutRef;
+};
 
 const Canvas = props => {
   const { funscripts, axis, totalTime, vpos, ...rest } = props
@@ -66,10 +85,10 @@ export const MosaVideoPlayer = props => {
   const [video_position, setVideoPosition] = useState(0)
   const [video_speed, setVideoSpeed] = useState("100")
   const [latency, setLatency] = useState(0)
-  const [position, setPosition] = useState({})
 
+  const position = useRef({})
   const [funscripts, setFunscripts] = useState({})
-  const [script_offsets, setScriptOffsets] = useState({})
+  const script_offsets = useRef({})
 
   const [editing_axis, setEditingAxis] = useState("none")
 
@@ -80,13 +99,25 @@ export const MosaVideoPlayer = props => {
                 ["A1", ".suck.funscript"],
                 ["L0", ".funscript"]];
 
-  useInterval(() => {
+  const time_window = 60
+
+  function doLoop() {
+    // logic:
+    // player.currentTime is authoritative, base current_msecs on that
+    // plan movement towards next_msecs (current_msecs plus time_window)
+    // if any funscript action happens before next_msecs, schedule next call for that time
+    // otherwise interpolate position and schedule next call after time_window
+    let next_call_delta_time = time_window
+    let time_start = Date.now()
+    let current_msecs = 0
     if (running) {
       let player = document.getElementById("idvideo");
-      if(player.paused) return;
-      let current_msecs = player.currentTime * 1000.0 - latency;
-      let tmp_position = {...position};
-      let tmp_offsets = {...script_offsets};
+      if(player.paused) return next_call_delta_time;
+      let playback_rate = 1 / (parseFloat(video_speed) / 100)
+      current_msecs = player.currentTime * 1000.0 - latency * playback_rate + time_window * playback_rate;
+      let next_msecs = current_msecs + time_window * playback_rate;
+      let delta_times = {}
+      for(let tmp_p in position.current) delta_times[tmp_p] = time_window
       for(let axis of axes.map((entry) => entry[0])) {
         try {
           if(funscripts[axis] === undefined) continue;
@@ -94,7 +125,7 @@ export const MosaVideoPlayer = props => {
           let inverted = !!funscripts[axis]["inverted"];
 
           let actions = funscripts[axis]["actions"];
-          let prev_offset = script_offsets[axis];
+          let prev_offset = script_offsets.current[axis];
           if(actions[prev_offset]["at"] > current_msecs) prev_offset = 0;
           let next_offset = prev_offset + 1;
           while(next_offset < actions.length && actions[next_offset]["at"] < current_msecs) next_offset++;
@@ -111,10 +142,25 @@ export const MosaVideoPlayer = props => {
             prev_val = 1000 - prev_val;
             next_val = 1000 - next_val;
           }
-          let where_in_interval = prev_offset !== next_offset ?
-                                  (current_msecs - prev_action["at"])*1.0 / (next_action["at"] - prev_action["at"])*1.0 :
-                                  0.5
-          let mid_val = (1.0 - where_in_interval) * prev_val + where_in_interval * next_val;
+          let mid_val = 0
+          if(next_action["at"] >= next_msecs) {
+            // next_action is more than time_window in the future: just interpolate
+            let where_in_interval = prev_offset !== next_offset ?
+                                    (next_msecs - prev_action["at"])*1.0 / (next_action["at"] - prev_action["at"])*1.0 :
+                                    0.5
+            mid_val = (1.0 - where_in_interval) * prev_val + where_in_interval * next_val;
+            delta_times[axis] = time_window * playback_rate / 1000
+          } else {
+            // next_action is coming up: use value directly and shorten next_call_delta_time
+            let delta_time = next_action["at"] - current_msecs
+            delta_times[axis] = delta_time * playback_rate / 1000
+            mid_val = next_val
+            next_call_delta_time = Math.min(next_call_delta_time, delta_time + 3) // add 3ms to avoid short calls
+            if(delta_times[axis] < 0.03) {
+              // avoid really abrupt motion: lengthen delta a bit
+              delta_times[axis] = delta_times[axis] / 0.03 * 0.01 + 0.02
+            }
+          }
 
           // if enabled, fill L0 pauses with slow motion
           const pause_threshold = 2000
@@ -127,6 +173,7 @@ export const MosaVideoPlayer = props => {
                 if(current_msecs - moving_pause_start > pause_threshold) {
                   // we are in a pause, create holding pattern
                   mid_val = Math.abs(1000 - (((current_msecs - moving_pause_start - pause_threshold) / 4) % 2000)) * 0.8
+                  delta_times[axis] = time_window / 1000
                 }
               }
             } else {
@@ -135,14 +182,14 @@ export const MosaVideoPlayer = props => {
                 // we are recovering from a pause, advance to mid_val (finish in 600ms)
                 let recover_degree = clampedFloat((current_msecs - Math.abs(moving_pause_start)) / 600, 0, 1)
                 console.log(`recovering ${recover_degree}`)
-                mid_val = recover_degree * mid_val + (1 - recover_degree) * tmp_position["L0"]
+                mid_val = recover_degree * mid_val + (1 - recover_degree) * position.current["L0"]
                 if(recover_degree > 0.95) setMovingPauseStart(0)
               } else if(moving_pause_start > 0) {
                 // we might be in a pause
                 if(current_msecs - moving_pause_start > pause_threshold) {
                   // we were in a pause, set to recover
                   setMovingPauseStart(-current_msecs)
-                  mid_val = tmp_position["L0"]
+                  mid_val = position.current["L0"]
                 } else {
                   // not paused yet, just reset timer
                   setMovingPauseStart(0)
@@ -151,30 +198,30 @@ export const MosaVideoPlayer = props => {
             }
           }
 
-          tmp_position[axis] = mid_val;
           // if(axis === "L0") console.log(`${prev_offset} ${where_in_interval} ${mid_val} ${prev_val} ${next_val}`);
-          tmp_offsets[axis] = prev_offset;
+          position.current[axis] = mid_val;
+          script_offsets.current[axis] = prev_offset;
         } catch(e) {
           console.log(e);
         }
       }
-      setPosition(tmp_position);
-      setScriptOffsets(tmp_offsets);
-      if(connected) commandRobot(tmp_position, 0);
+      if(connected) commandRobot(position.current, delta_times);
+      let time_elapsed = Date.now() - time_start  // correct next call delta for runtime - this is easily 20-50ms occasionally with serial on
+      next_call_delta_time = Math.max(1, next_call_delta_time - time_elapsed)
+      //console.log(`time_start ${time_start}, current_msecs ${Math.floor(current_msecs)}, time_elapsed ${time_elapsed}, delta ${Math.floor(next_call_delta_time)}, L0offset ${script_offsets.current["L0"]}`)
     }
-  }, 50) // next execution in 50ms
+    return next_call_delta_time
+  }
 
   async function setFile(file) {
     function initVideo(filename, funscripts) {
       setEditingAxis("none")
       setCurrentFile(filename)
       setFunscripts(funscripts)
-      let tmp2 = {};
-      for(let axis in funscripts) tmp2[axis] = 0
-      setScriptOffsets(tmp2)
-      tmp2 = {};
-      for(let axis in funscripts) if(funscripts[axis] !== undefined) tmp2[axis] = 500
-      setPosition({...tmp2})
+      script_offsets.current = {}
+      for(let axis in funscripts) script_offsets.current[axis] = 0
+      position.current = {}
+      for(let axis in funscripts) if(funscripts[axis] !== undefined) position.current[axis] = 500
       let video = document.getElementById("idvideo")
       video.play();
       video.ondurationchange = (e) => setVideoLength(e.srcElement.duration * 1000)
@@ -265,9 +312,7 @@ export const MosaVideoPlayer = props => {
       tmp[axis] = {"actions": [{"at": 0, "pos": 50}]}
       setFunscripts(tmp)
       console.log(`created funscript file ${axis}`)
-      let tmp2 = {...script_offsets}
-      tmp2[axis] = 0
-      setScriptOffsets(tmp2)
+      script_offsets.current[axis] = 0
     }
     setEditingAxis(axis)
   }
@@ -338,11 +383,12 @@ export const MosaVideoPlayer = props => {
     )
   })
 
+  useTimeout(doLoop, 100)
   let stle = {position: 'absolute', marginLeft: '399px', width: '2px', height: '100px', backgroundColor: 'grey'}
-  return (
+  const result = useMemo(() => (
     <Card>
       <CardContent>
-        <Typography variant="h5">Video {Math.floor(position["L0"])} {Math.floor(position["R2"])} {Math.floor(position["R1"])}</Typography>
+        <Typography variant="h5">Video</Typography>
         <hr />
         <video id="idvideo" width="100%" controls>
         </video>
@@ -431,7 +477,10 @@ export const MosaVideoPlayer = props => {
         </Button>
       </CardActions>
     </Card>
-  )
+    ), [connected, current_file, video_files, running, moving_pauses,
+        video_length, video_position, video_speed, latency, funscripts, editing_axis]
+  );
+  return result;
 }
 
 export default MosaVideoPlayer
