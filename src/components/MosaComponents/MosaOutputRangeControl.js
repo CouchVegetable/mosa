@@ -1,6 +1,7 @@
 import React from 'react'
 
 import {
+  Button,
   Card,
   CardContent,
   FormGroup,
@@ -8,15 +9,21 @@ import {
   Slider,
 } from '@material-ui/core'
 
+import { defaultRange } from '../../config/defaults'
+
 const MosaOutputRangeControl = props => {
   const { settings, updateSettings } = props
 
   const handleRangeChange = (axis, value) => {
-    const [min, max] = value
-    const newValue = {}
-    newValue[axis + 'Min'] = min
-    newValue[axis + 'Max'] = max
-    updateSettings({ ...settings, ...newValue })
+    if(Array.isArray(value)) {
+      const [min, max] = value
+      const newValue = {}
+      newValue[axis + 'Min'] = min
+      newValue[axis + 'Max'] = max
+      updateSettings({ ...settings, ...newValue })
+    } else {
+      updateSettings({ ...settings, [axis]: value })
+    }
   }
 
   return (
@@ -184,6 +191,26 @@ const MosaOutputRangeControl = props => {
             value={[settings.A0Min, settings.A0Max]}
             onChange={(e, value) => handleRangeChange('A0', value)}
           />
+          <Slider
+            marks={[
+              { value: 0, label: '0%' },
+              { value: 100, label: `Intensity ${settings.Intensity}%` },
+              { value: 150, label: '150%' },
+            ]}
+            step={1}
+            min={0}
+            max={150}
+            valueLabelDisplay="auto"
+            value={settings.Intensity}
+            onChange={(e, value) => handleRangeChange('Intensity', value)}
+          />
+          <Button
+            onClick={() => updateSettings({ ...defaultRange })}
+            variant="contained"
+            color="default"
+          >
+            Reset to defaults
+          </Button>
         </FormGroup>
       </CardContent>
     </Card>

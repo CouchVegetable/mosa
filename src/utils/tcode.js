@@ -59,37 +59,38 @@ export const scaleAxes = (axes, outputRange) => {
     V2Max,
     A0Min,
     A0Max,
+    Intensity,
   } = outputRange
   return {
     ...(axes.L0 !== undefined && {
-      L0: L0Min + (axes.L0 / 1000) * (L0Max - L0Min),
+      L0: clampedNum((axes.L0 / 1000 - 0.5) * (L0Max - L0Min) * Intensity / 100 + (L0Max - L0Min) / 2, 0, 1000),
     }),
     ...(axes.L1 !== undefined && {
-      L1: L1Min + (axes.L1 / 1000) * (L1Max - L1Min),
+      L1: clampedNum((axes.L1 / 1000 - 0.5) * (L1Max - L1Min) * Intensity / 100 + (L1Max - L1Min) / 2, 0, 1000),
     }),
     ...(axes.L2 !== undefined && {
-      L2: L2Min + (axes.L2 / 1000) * (L2Max - L2Min),
+      L2: clampedNum((axes.L2 / 1000 - 0.5) * (L2Max - L2Min) * Intensity / 100 + (L2Max - L2Min) / 2, 0, 1000),
     }),
     ...(axes.R0 !== undefined && {
-      R0: R0Min + (axes.R0 / 1000) * (R0Max - R0Min),
+      R0: clampedNum((axes.R0 / 1000 - 0.5) * (R0Max - R0Min) * Intensity / 100 + (R0Max - R0Min) / 2, 0, 1000),
     }),
     ...(axes.R1 !== undefined && {
-      R1: R1Min + (axes.R1 / 1000) * (R1Max - R1Min),
+      R1: clampedNum((axes.R1 / 1000 - 0.5) * (R1Max - R1Min) * Intensity / 100 + (R1Max - R1Min) / 2, 0, 1000),
     }),
     ...(axes.R2 !== undefined && {
-      R2: R2Min + (axes.R2 / 1000) * (R2Max - R2Min),
+      R2: clampedNum((axes.R2 / 1000 - 0.5) * (R2Max - R2Min) * Intensity / 100 + (R2Max - R2Min) / 2, 0, 1000),
     }),
     ...(axes.V0 !== undefined && {
-      V0: V0Min + (axes.V0 / 1000) * (V0Max - V0Min),
+      V0: clampedNum((axes.V0 / 1000 - 0.5) * (V0Max - V0Min) * Intensity / 100 + (V0Max - V0Min) / 2, 0, 1000),
     }),
     ...(axes.V1 !== undefined && {
-      V1: V1Min + (axes.V1 / 1000) * (V1Max - V1Min),
+      V1: clampedNum((axes.V1 / 1000 - 0.5) * (V1Max - V1Min) * Intensity / 100 + (V1Max - V1Min) / 2, 0, 1000),
     }),
     ...(axes.V2 !== undefined && {
-      V2: V2Min + (axes.V2 / 1000) * (V2Max - V2Min),
+      V2: clampedNum((axes.V2 / 1000 - 0.5) * (V2Max - V2Min) * Intensity / 100 + (V2Max - V2Min) / 2, 0, 1000),
     }),
     ...(axes.A0 !== undefined && {
-      A0: A0Min + (axes.A0 / 1000) * (A0Max - A0Min),
+      A0: clampedNum((axes.A0 / 1000 - 0.5) * (A0Max - A0Min) * Intensity / 100 + (A0Max - A0Min) / 2, 0, 1000),
     }),
   }
 }

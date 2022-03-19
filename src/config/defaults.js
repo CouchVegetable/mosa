@@ -32,4 +32,5 @@ export const defaultRange = {
   V2Max: 900,
   A0Min: 0,
   A0Max: 999,
+  Intensity: 100,
 }
