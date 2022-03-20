@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useRef, useMemo, useState } from 'react'
 import {
   Button,
   Card,
@@ -11,7 +11,7 @@ import {
   Typography,
 } from '@material-ui/core'
 
-import { useInterval } from '../../hooks/useIntervalHook'
+import { useTimeout } from '../../hooks/useTimeoutHook'
 import { chooseRandomStroke } from '../../utils/random'
 
 import { strokes } from '../../config/strokes'
@@ -23,7 +23,7 @@ export const MosaRandomControl = props => {
   const [availableStrokes, setAvailableStrokes] = useState(strokes) // start with all strokes enabled by default
 
   const [timer, setTimer] = useState(0) // start with no seconds on the clock
-  const [startTime, setStartTime] = useState(0)
+  const strokeStartTime = useRef(0)
   const [step, setStep] = useState(50)
   const [speed, setSpeed] = useState(100)
   const [randomness, setRandomness] = useState(30)
@@ -33,7 +33,8 @@ export const MosaRandomControl = props => {
   const [stroke, setStroke] = useState(strokeType.getStroke(target, step))
   const [strokeCounter, setStrokeCounter] = useState(0)
 
-  useInterval(() => {
+  useTimeout(() => {
+    const start_time = performance.now()
     if (running && connected) {
       if (timer <= 0) {
         // do we change stroke?
@@ -43,24 +44,28 @@ export const MosaRandomControl = props => {
             : strokeType
 
         const stroke = newStrokeType.getStroke(target, speed/100, step)
-        const newTimer = step * stroke.length // derive next timing from length of stroke
+        const newTimer = step * stroke.Length // derive next timing from length of stroke
 
         setStrokeType(newStrokeType)
         setStroke(stroke)
         setTimer(newTimer) // add time to the timer
-        setStartTime(new Date().getTime())
+        strokeStartTime.current = start_time
         setStrokeCounter(strokeCounter + 1)
       } else {
         // execute the next stroke step
-        // It's not guaranteed we run at [step] interval, so look at actual time.
-        let curStepNr = Math.floor((new Date().getTime() - startTime) / step)
+        let curStepNr = Math.floor((performance.now() - strokeStartTime.current) / step)
         curStepNr = curStepNr < stroke.length ? curStepNr : stroke.length - 1
         const destination = stroke[curStepNr]
         commandRobot(destination, step / 1000)
-        setTimer(step * (stroke.length - curStepNr - 1))
+        const next_timer = step * (stroke.length - curStepNr - 1)
+        setTimer(next_timer)
       }
-    } // if not running & connected, no-op
-  }, [step]) // next execution time will be about `step` ms away
+      const delta_to_next_call = Math.max(step - (performance.now() - start_time), 1)
+      console.log(start_time + " " + delta_to_next_call)
+      return delta_to_next_call
+    }
+    return 100 // wait 100ms in case we're idle
+  }, 10)
 
   const toggleRunning = running => {
     running ? setTimer(0) : setStrokeCounter(0)
@@ -77,8 +82,7 @@ export const MosaRandomControl = props => {
     })
   }
 
-  return (
-    <Card>
+  const cachedPortion = useMemo(() => (
       <CardContent>
         <Typography variant="h5">Random: {strokeType.name}</Typography>
         <hr />
@@ -131,6 +135,11 @@ export const MosaRandomControl = props => {
           })}
         </FormGroup>
       </CardContent>
+  ), [running, strokeType, randomness, speed, step, availableStrokes])
+
+  return (
+    <Card>
+      { cachedPortion }
       <CardActions>
         <Button
           onClick={() => toggleRunning(running)}

@@ -12,27 +12,8 @@ import {
   Typography,
 } from '@material-ui/core'
 
+import { useTimeout } from '../../hooks/useTimeoutHook'
 import { clampedFloat, clampedNum } from '../../utils/clamp'
-
-// callback can return a value and will get re-run after X ms then.
-function useTimeout(callback, delay) {
-  const timeoutRef = React.useRef(null);
-  const savedCallback = React.useRef(callback);
-  React.useEffect(() => {
-    savedCallback.current = callback;
-  }, [callback]);
-  React.useEffect(() => {
-    const tick = () => {
-      let next = savedCallback.current();
-      if(next) timeoutRef.current = window.setTimeout(tick, next);
-    }
-    if (typeof delay === 'number') {
-      timeoutRef.current = window.setTimeout(tick, delay);
-      return () => window.clearTimeout(timeoutRef.current);
-    }
-  }, [delay]);
-  return timeoutRef;
-};
 
 const Canvas = props => {
   const { funscripts, axis, totalTime, vpos, ...rest } = props
