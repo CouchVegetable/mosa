@@ -70,6 +70,10 @@ const Canvas = props => {
          </div>
 }
 
+let last_video_element_time = 0
+let last_performance_now_time = 0
+let timers_delta = 0
+
 export const MosaVideoPlayer = props => {
   const { connected, target, commandRobot } = props
 
@@ -102,19 +106,37 @@ export const MosaVideoPlayer = props => {
   const time_window = 60
 
   function doLoop() {
-    // logic:
-    // player.currentTime is authoritative, base current_msecs on that
+    // video element currentTime isn't 100% accurate (based on current frame?)
+    // in testing, for 100ms intervals, it is often off by +-10ms.
+    // keep an own video timer and skew that if necessary.
+    let performance_now_time = Math.floor(performance.now())
+    let player = document.getElementById("idvideo")
+    let video_element_time = Math.floor(player.currentTime * 1000)
+    let timers_delta_current = performance_now_time - video_element_time
+    let delta_delta = timers_delta_current - timers_delta
+    if(Math.abs(delta_delta) > 50) {
+      // timers are out of sync, just reset, probably user skipped/paused video
+      timers_delta = performance_now_time - video_element_time
+      if(!player.paused) console.log("Video timer out of sync, resetting")
+    } else if(Math.abs(delta_delta) > 12) {
+      // some difference, skew delta a bit to correct
+      timers_delta = timers_delta + (delta_delta > 0 ? +1 : -1)
+      //console.log("Skewing")
+    }
+    let current_msecs = performance_now_time - timers_delta
+    //console.log(`smoothed time: ${current_msecs}, timers_delta: ${timers_delta}`)
+    last_video_element_time = video_element_time
+    last_performance_now_time = performance_now_time
+
     // plan movement towards next_msecs (current_msecs plus time_window)
     // if any funscript action happens before next_msecs, schedule next call for that time
     // otherwise interpolate position and schedule next call after time_window
     let next_call_delta_time = time_window
-    let time_start = Date.now()
-    let current_msecs = 0
     if (running) {
-      let player = document.getElementById("idvideo");
       if(player.paused) return next_call_delta_time;
       let playback_rate = 1 / (parseFloat(video_speed) / 100)
-      current_msecs = player.currentTime * 1000.0 - latency * playback_rate + time_window * playback_rate;
+      next_call_delta_time = next_call_delta_time * playback_rate
+      current_msecs = current_msecs - latency * playback_rate + time_window * playback_rate;
       let next_msecs = current_msecs + time_window * playback_rate;
       let delta_times = {}
       for(let tmp_p in position.current) delta_times[tmp_p] = time_window
@@ -126,13 +148,24 @@ export const MosaVideoPlayer = props => {
 
           let actions = funscripts[axis]["actions"];
           let prev_offset = script_offsets.current[axis];
-          if(actions[prev_offset]["at"] > current_msecs) prev_offset = 0;
+          if(actions[prev_offset]["at"] > current_msecs && prev_offset > 0) {
+            // current_msecs jumped back, video probably got rewound.
+            console.log(`${axis}: Retracing current funscript event (did the video skip?)`)
+            prev_offset = 0;
+          }
+          // look for the first offset that's after current_msecs
           let next_offset = prev_offset + 1;
           while(next_offset < actions.length && actions[next_offset]["at"] < current_msecs) next_offset++;
-          if(next_offset < 1) continue;
+          if(next_offset < 1) continue; // empty script
           prev_offset = next_offset - 1;
-          if(next_offset >= actions.length) next_offset = prev_offset;
-          if(actions[prev_offset]["at"] > current_msecs) next_offset = prev_offset;
+          if(next_offset >= actions.length) {
+            // current time is after the end of the funscript
+            next_offset = prev_offset;
+          }
+          if(actions[prev_offset]["at"] > current_msecs) {
+            // current time is before the start of the funscript
+            next_offset = prev_offset;
+          }
 
           let prev_action = actions[prev_offset];
           let next_action = actions[next_offset];
@@ -152,14 +185,11 @@ export const MosaVideoPlayer = props => {
             delta_times[axis] = time_window * playback_rate / 1000
           } else {
             // next_action is coming up: use value directly and shorten next_call_delta_time
-            let delta_time = next_action["at"] - current_msecs
+            // this makes sure we catch all extremas and don't interpolate them away
+            let delta_time = next_action["at"] - current_msecs + 1
             delta_times[axis] = delta_time * playback_rate / 1000
             mid_val = next_val
-            next_call_delta_time = Math.min(next_call_delta_time, delta_time + 3) // add 3ms to avoid short calls
-            if(delta_times[axis] < 0.03) {
-              // avoid really abrupt motion: lengthen delta a bit
-              delta_times[axis] = delta_times[axis] / 0.03 * 0.01 + 0.02
-            }
+            next_call_delta_time = Math.min(next_call_delta_time, delta_time)
           }
 
           // if enabled, fill L0 pauses with slow motion
@@ -200,15 +230,17 @@ export const MosaVideoPlayer = props => {
 
           // if(axis === "L0") console.log(`${prev_offset} ${where_in_interval} ${mid_val} ${prev_val} ${next_val}`);
           position.current[axis] = mid_val;
-          script_offsets.current[axis] = prev_offset;
+          script_offsets.current[axis] = prev_offset
         } catch(e) {
           console.log(e);
         }
       }
-      if(connected) commandRobot(position.current, delta_times);
-      let time_elapsed = Date.now() - time_start  // correct next call delta for runtime - this is easily 20-50ms occasionally with serial on
+      if(connected) {
+        commandRobot(position.current, delta_times);
+      }
+      let time_elapsed = performance.now() - performance_now_time  // correct next call delta for runtime - this is easily 20-50ms occasionally with serial on
       next_call_delta_time = Math.max(1, next_call_delta_time - time_elapsed)
-      //console.log(`time_start ${time_start}, current_msecs ${Math.floor(current_msecs)}, time_elapsed ${time_elapsed}, delta ${Math.floor(next_call_delta_time)}, L0offset ${script_offsets.current["L0"]}`)
+      //console.log(`performance_now_time ${performance_now_time}, current_msecs ${Math.floor(current_msecs)}, time_elapsed ${time_elapsed}, delta ${Math.floor(next_call_delta_time)}, L0offset ${script_offsets.current["L0"]}`)
     }
     return next_call_delta_time
   }
