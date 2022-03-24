@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react'
 import { defaultRange, defaultTarget } from '../config/defaults'
-import { useSerial } from '../hooks/useSerialHook'
 import { scaleAxes, constructTCodeCommand } from '../utils/tcode'
 
 export const MosaContext = React.createContext({
@@ -15,7 +14,7 @@ export const MosaProvider = ({ children }) => {
 
   const [mosaSettings, setMosaSettings] = useState(defaultRange)
 
-  const [connectToSerial, disconnectFromSerial, writeToSerial] = useSerial()
+  const [serialWorker, setSerialWorker] = useState()
   const [connected, setConnected] = useState(false)
   const [target, setTarget] = useState(defaultTarget)
 
@@ -73,6 +72,20 @@ export const MosaProvider = ({ children }) => {
       // we can store strings, not objects, in localstorage
       localStorage.setItem('mosaSettings', JSON.stringify(defaultRange))
     }
+
+    // create serial web worker
+    let serWorker = new Worker("../utils/serialWorker.js")  // see static/utils/serialWorker.js
+    serWorker.onmessage = (e) => {
+      if(e.data[0] === "targetUpdate") {
+        // the worker updates the robot target periodically
+        // this decoupling allows to update the robot target without triggering rerenders excessively
+        const destination = e.data[1]
+        const newTarget = { ...target, ...destination }
+        setTarget(newTarget)
+      }
+    }
+    serWorker.postMessage(["setTarget",  target])
+    setSerialWorker(serWorker)
   }, [setMosaSettings])
 
   const updateSettings = newSettings => {
@@ -82,7 +95,8 @@ export const MosaProvider = ({ children }) => {
 
   const handleConnectToSerial = async () => {
     try {
-      await connectToSerial()
+      const newPort = await navigator.serial.requestPort()
+      serialWorker.postMessage(["connectSerial"])
       setConnected(true)
     } catch (e) {
       console.error(e)
@@ -93,21 +107,17 @@ export const MosaProvider = ({ children }) => {
   }
   const handleDisconnectFromSerial = async () => {
     commandRobot(defaultTarget, 1, defaultRange)
-    await disconnectFromSerial()
+    serialWorker.postMessage(["disconnectSerial"])
     setConnected(false)
   }
 
   const commandRobot = (destination, interval) => {
-    // persist target to state
-    const newTarget = { ...target, ...destination }
-    setTarget(newTarget)
-
-    // tell the robot what to do
     const scaledDestination = scaleAxes(destination, mosaSettings)
     const command = constructTCodeCommand(scaledDestination, interval)
     switch (outputMethod) {
       case 'serial':
-        writeToSerial(command)
+        serialWorker.postMessage(["writeToSerial", [command]])
+        serialWorker.postMessage(["setTarget", destination])
         break
       case 'visualizer':
         console.log('[OSR][DEV] Output to vis: ' + command)
