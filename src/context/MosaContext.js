@@ -73,7 +73,7 @@ export const MosaProvider = ({ children }) => {
       localStorage.setItem('mosaSettings', JSON.stringify(defaultRange))
     }
 
-    // create serial web worker
+    // create web worker
     let mcWorker = new Worker((window.location.pathname.startsWith("/mosa/") ? "/mosa/" : "/") + "worker/mosaContextWorker.js")  // see static/worker/mosaContextWorker.js
     mcWorker.onmessage = (e) => {
       if(e.data[0] === "targetUpdate") {
