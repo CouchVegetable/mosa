@@ -1,13 +1,16 @@
-// thanks to https://github.com/WICG/serial/blob/gh-pages/EXPLAINER.md
-//         & https://codelabs.developers.google.com/codelabs/web-serial/
-
 let port = null
 let reader = null
 let writer = null
 let outputDone = false
 let outputStream = null
 let inputDone = null
+
 let target = {}
+let targetHasChanged = true
+
+// serial handling info:
+// thanks to https://github.com/WICG/serial/blob/gh-pages/EXPLAINER.md
+//         & https://codelabs.developers.google.com/codelabs/web-serial/
 
 readFromSerial = async () => {
   while (reader) {
@@ -40,7 +43,7 @@ onmessage = async (e) => {
 
         // eslint-disable-next-line no-undef
         const decoder = new TextDecoderStream()
-        intputDone = port.readable.pipeTo(decoder.writable)
+        inputDone = port.readable.pipeTo(decoder.writable)
         reader = decoder.readable.getReader()
 
         readFromSerial()
@@ -48,7 +51,8 @@ onmessage = async (e) => {
         port = null
         outputDone = null
         outputStream = null
-        intputDone = null
+        inputDone = null
+        writer = null
         reader = null
         throw e
       }
@@ -61,7 +65,7 @@ onmessage = async (e) => {
         await reader.cancel()
         await inputDone.catch(() => {})
         reader = null
-        intputDone = null
+        inputDone = null
       }
       if (outputStream) {
         await writer.close()
@@ -84,13 +88,19 @@ onmessage = async (e) => {
       console.warn('[OSR][WARN] Disconnected, skipping stream write')
     }
   } else if(e.data[0] === "setTarget") {
-    target = e.data[1]
+    if(JSON.stringify(e.data[1]) !== JSON.stringify(target)) {
+      target = e.data[1]
+      targetHasChanged = true
+    }
   }
 }
 
 const notifyTarget = () => {
-  postMessage(["targetUpdate", target])
-  setTimeout(notifyTarget, 500)
+  if(targetHasChanged) {
+    postMessage(["targetUpdate", target])
+    targetHasChanged = false
+  }
+  setTimeout(notifyTarget, 100)
 }
 
 setTimeout(notifyTarget, 10)

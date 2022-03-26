@@ -14,7 +14,7 @@ export const MosaProvider = ({ children }) => {
 
   const [mosaSettings, setMosaSettings] = useState(defaultRange)
 
-  const [serialWorker, setSerialWorker] = useState()
+  const [mosaContextWorker, setMosaContextWorker] = useState()
   const [connected, setConnected] = useState(false)
   const [target, setTarget] = useState(defaultTarget)
 
@@ -58,9 +58,9 @@ export const MosaProvider = ({ children }) => {
     setConnected(false)
   }
 
-  // once, on load, try to load settings from localStorage
-  // if we can't find them, create them in localStorage
   useEffect(() => {
+    // once, on load, try to load settings from localStorage
+    // if we can't find them, create them in localStorage
     // we can store strings, not objects, in localstorage
     const existingMosaSettings = JSON.parse(
       localStorage.getItem('mosaSettings')
@@ -74,8 +74,8 @@ export const MosaProvider = ({ children }) => {
     }
 
     // create serial web worker
-    let serWorker = new Worker("../utils/serialWorker.js")  // see static/utils/serialWorker.js
-    serWorker.onmessage = (e) => {
+    let mcWorker = new Worker("../worker/mosaContextWorker.js")  // see static/worker/mosaContextWorker.js
+    mcWorker.onmessage = (e) => {
       if(e.data[0] === "targetUpdate") {
         // the worker updates the robot target periodically
         // this decoupling allows to update the robot target without triggering rerenders excessively
@@ -84,8 +84,8 @@ export const MosaProvider = ({ children }) => {
         setTarget(newTarget)
       }
     }
-    serWorker.postMessage(["setTarget",  target])
-    setSerialWorker(serWorker)
+    mcWorker.postMessage(["setTarget",  target])
+    setMosaContextWorker(mcWorker)
   }, [setMosaSettings])
 
   const updateSettings = newSettings => {
@@ -95,8 +95,8 @@ export const MosaProvider = ({ children }) => {
 
   const handleConnectToSerial = async () => {
     try {
-      const newPort = await navigator.serial.requestPort()
-      serialWorker.postMessage(["connectSerial"])
+      await navigator.serial.requestPort()
+      mosaContextWorker.postMessage(["connectSerial"])
       setConnected(true)
     } catch (e) {
       console.error(e)
@@ -107,17 +107,18 @@ export const MosaProvider = ({ children }) => {
   }
   const handleDisconnectFromSerial = async () => {
     commandRobot(defaultTarget, 1, defaultRange)
-    serialWorker.postMessage(["disconnectSerial"])
+    mosaContextWorker.postMessage(["disconnectSerial"])
     setConnected(false)
   }
 
   const commandRobot = (destination, interval) => {
+    mosaContextWorker.postMessage(["setTarget", destination])
+
     const scaledDestination = scaleAxes(destination, mosaSettings)
     const command = constructTCodeCommand(scaledDestination, interval)
     switch (outputMethod) {
       case 'serial':
-        serialWorker.postMessage(["writeToSerial", [command]])
-        serialWorker.postMessage(["setTarget", destination])
+        mosaContextWorker.postMessage(["writeToSerial", [command]])
         break
       case 'visualizer':
         console.log('[OSR][DEV] Output to vis: ' + command)
