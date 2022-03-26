@@ -257,8 +257,9 @@ export const MosaVideoPlayer = props => {
     }
 
     let funscripts = {};
-    document.getElementById("idvideo").src = `video/${file}`;
-    let file_base = "video/" + file.replaceAll(".mp4", "");
+    let pathPrefix = window.location.pathname.startsWith("/mosa/") ? "/mosa/" : "/"
+    document.getElementById("idvideo").src = `${pathPrefix}video/${file}`;
+    let file_base = pathPrefix + "video/" + file.replaceAll(".mp4", "");
     let fetches = [];
     for(let axis of axes) {
       fetches.push(
@@ -388,7 +389,8 @@ export const MosaVideoPlayer = props => {
 
   useEffect(() => {
     if(video_files.length > 0) return;
-    fetch("video/videos.txt", {})
+    let pathPrefix = window.location.pathname.startsWith("/mosa/") ? "/mosa/" : "/"
+    fetch(`${pathPrefix}video/videos.txt`, {})
     .then(res => res.text())
     .then(
           (result) => { setVideoFiles(result.split("\n")) },
