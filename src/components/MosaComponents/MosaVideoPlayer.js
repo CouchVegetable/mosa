@@ -192,8 +192,9 @@ export const MosaVideoPlayer = props => {
   }
 
   const selectVideoSpeed = speed => {
-    let player = document.getElementById("idvideo");
-    player.playbackRate = parseFloat(speed) / 100;
+    let player = document.getElementById("idvideo")
+    player.playbackRate = parseFloat(speed) / 100
+    worker.postMessage(["updateParameters", { playback_rate: parseFloat(speed) / 100 }])
     setVideoSpeed(speed)
   }
 
@@ -223,7 +224,6 @@ export const MosaVideoPlayer = props => {
     const speed_key_dict = { 'q': 10, 'w': 25, 'e': 50, 'r': 100, 't': 200 }
     if(key in speed_key_dict) {
       selectVideoSpeed(speed_key_dict[key])
-      worker.postMessage(["updateParameters", { playback_rate: 100 / speed_key_dict[key] }])
     }
   }
 
@@ -307,6 +307,7 @@ export const MosaVideoPlayer = props => {
         <MenuItem value="10" key="10">10%</MenuItem>
         <MenuItem value="25" key="25">25%</MenuItem>
         <MenuItem value="50" key="50">50%</MenuItem>
+        <MenuItem value="75" key="75">75%</MenuItem>
         <MenuItem value="100" key="100">100%</MenuItem>
         <MenuItem value="200" key="200">200%</MenuItem>
       </Select>

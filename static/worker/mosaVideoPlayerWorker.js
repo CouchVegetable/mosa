@@ -1,8 +1,7 @@
 let contextWorkerPort = {}
 
-let last_video_element_time = 0
-let last_performance_now_time = 0
-let timers_delta = 0
+let performance_now_time_at_video_start = 0
+let video_speed = 1
 
 let parameters = {
   funscripts: {},
@@ -23,23 +22,23 @@ onmessage = async (e) => {
     // video element currentTime isn't 100% accurate (based on current frame?)
     // in testing, for 100ms intervals, it is often off by +-10ms.
     // keep an own video timer and skew that if necessary.
+    let playback_rate = parameters["playback_rate"]
     let video_element_time = Math.floor(e.data[1])
     let performance_now_time = Math.floor(performance.now())
-    let timers_delta_current = performance_now_time - video_element_time
-    let delta_delta = timers_delta_current - timers_delta
-    if(Math.abs(delta_delta) > 50) {
-      // timers are out of sync, just reset, probably user skipped/paused video
-      timers_delta = performance_now_time - video_element_time
+    let timers_delta = (performance_now_time - performance_now_time_at_video_start) * playback_rate - video_element_time
+    let max_acceptable_delta = 50 * 1 / playback_rate
+    if(Math.abs(timers_delta) > max_acceptable_delta) {
+      // timers are out of sync, just reset, probably user skipped/paused video/changed speed
+      performance_now_time_at_video_start = performance_now_time - video_element_time / playback_rate
       console.log("Video timer out of sync, resetting")
       if(contextWorkerPort.postMessage) contextWorkerPort.postMessage(["enableTempSmoothing"])
-    } else if(Math.abs(delta_delta) > 12) {
+    } else if(Math.abs(timers_delta) > max_acceptable_delta / 3) {
       // some difference, skew delta a bit to correct
-      timers_delta = timers_delta + (delta_delta > 0 ? +1 : -1)
-      //console.log("Skewing")
+      performance_now_time_at_video_start = performance_now_time_at_video_start + (timers_delta > 0 ? +1 : -1)
+      console.log("Skewing")
     }
-    last_video_element_time = video_element_time
-    let current_msecs = performance_now_time - timers_delta
-    console.log(`smoothed time: ${current_msecs}, timers_delta: ${timers_delta}`)
+    let current_msecs = (performance_now_time - performance_now_time_at_video_start) * playback_rate
+    console.log(`new smoothed time: ${current_msecs}, old timers_delta: ${timers_delta}`)
   } else if(e.data[0] === "updateParameters") {
     console.log(`updated parameters: ${JSON.stringify(e.data[1])}`)
     if(e.data[1]["running"]) contextWorkerPort.postMessage(["enableTempSmoothing"])
@@ -62,8 +61,7 @@ function clampedFloat(x, min, max) {
 
 function doLoop() {
   let performance_now_time = Math.floor(performance.now())
-  let current_msecs = performance_now_time - timers_delta
-  last_performance_now_time = performance_now_time
+  let current_msecs = (performance_now_time - performance_now_time_at_video_start) * parameters["playback_rate"]
 
   // plan movement towards next_msecs (current_msecs plus time_window)
   // if any funscript action happens before next_msecs, schedule next call for that time
@@ -71,9 +69,9 @@ function doLoop() {
   let next_call_delta_time = time_window
   const funscripts = parameters.funscripts
   if (parameters.running) {
-    next_call_delta_time = next_call_delta_time * parameters.playback_rate
-    current_msecs = current_msecs - parameters.latency * parameters.playback_rate + time_window * parameters.playback_rate
-    let next_msecs = current_msecs + time_window * parameters.playback_rate
+    next_call_delta_time = next_call_delta_time / parameters.playback_rate
+    current_msecs = current_msecs - parameters.latency / parameters.playback_rate
+    let next_msecs = current_msecs + time_window / parameters.playback_rate
     position = { "L0": position["L0"] }
     let delta_times = {}
     for(let axis in funscripts) {
@@ -122,12 +120,12 @@ function doLoop() {
                                   (next_msecs - prev_action["at"]) / (next_action["at"] - prev_action["at"]) :
                                   0.5
           mid_val = (1.0 - where_in_interval) * prev_val + where_in_interval * next_val;
-          delta_times[axis] = time_window * parameters.playback_rate / 1000
+          delta_times[axis] = time_window / 1000 / parameters.playback_rate
           next_call_delta_time = Math.min(next_call_delta_time, delta_time - 50)
         } else {
           // next_action is coming up: use value directly and shorten next_call_delta_time
           // this makes sure we catch all extremas and don't interpolate them away
-          delta_times[axis] = delta_time * parameters.playback_rate / 1000
+          delta_times[axis] = delta_time / parameters.playback_rate / 1000
           mid_val = next_val
           if(delta_time < time_window) {
             next_call_delta_time = Math.min(next_call_delta_time, delta_time + 2)
