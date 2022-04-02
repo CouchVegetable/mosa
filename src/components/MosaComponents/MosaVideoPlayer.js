@@ -86,6 +86,8 @@ export const MosaVideoPlayer = props => {
       setEditingAxis("none")
       setCurrentFile(filename)
       setFunscripts(funscripts)
+      let lsLatency = localStorage.getItem(`mosaSettingsVideoLatency_${filename}`)
+      if(lsLatency) setLatency(parseFloat(lsLatency))
       worker.postMessage(["updateParameters", { funscripts: funscripts }])
       let video = document.getElementById("idvideo")
       video.play();
@@ -264,6 +266,12 @@ export const MosaVideoPlayer = props => {
     worker.postMessage(["setContextPort", port], [port])
   }, [])
 
+  const updateLatency = value => {
+    worker.postMessage(["updateParameters", { latency: value }])
+    setLatency(value)
+    localStorage.setItem(`mosaSettingsVideoLatency_${current_file}`, `${value}`)
+  }
+
   let stle = {position: 'absolute', marginLeft: '399px', width: '2px', height: '100px', backgroundColor: 'grey'}
   const result = useMemo(() => (
     <Card>
@@ -333,7 +341,7 @@ export const MosaVideoPlayer = props => {
         step={10}
         track={false}
         valueLabelDisplay={'auto'}
-        onChange={(e, value) => { worker.postMessage(["updateParameters", { latency: value }]); setLatency(value) } }
+        onChange={(e, value) => { updateLatency(value) } }
         marks={[{ value: -1000, label: 'Video 1s early' },{ value: 1000, label: 'Video 1s late' }]}
       />
       <FormControlLabel key="moving_pauses" label="Moving pauses"
