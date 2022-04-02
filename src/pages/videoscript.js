@@ -21,6 +21,7 @@ const TestBedPage = () => {
         isSerialAvailable,
         connected,
         commandRobot,
+        getMosaContextWorkerPort,
         target,
         inputMethod,
         handleInputMethodChange,
@@ -90,6 +91,7 @@ const TestBedPage = () => {
               <MosaVideoPlayer
                 connected={connected}
                 commandRobot={commandRobot}
+                getMosaContextWorkerPort={getMosaContextWorkerPort}
               />
             </Grid>
             <Grid item xs={4} md={4} lg={3}>

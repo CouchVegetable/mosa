@@ -1,9 +1,13 @@
+self.importScripts('../utils/tcode.js')
+
 let port = null
 let reader = null
 let writer = null
 let outputDone = false
 let outputStream = null
 let inputDone = null
+
+let mosaSettings = {}
 
 let target = {}
 let targetHasChanged = true
@@ -26,8 +30,25 @@ readFromSerial = async () => {
   }
 }
 
+writeToSerial = (lines) => {
+  if (writer) {
+    lines.forEach(line => {
+      writer.write(line + '\n')
+    })
+  } else {
+    console.warn('[OSR][WARN] Disconnected, skipping stream write')
+  }
+}
+
+commandRobot = (destination, interval) => {
+  const scaledDestination = scaleAxes(destination, mosaSettings)
+  const command = constructTCodeCommand(scaledDestination, interval)
+  if(writer) writeToSerial([command])
+  console.log('[OSR][DEV] commandRobot: ' + command)
+}
+
 onmessage = async (e) => {
-  // console.log("Got message! " + e.data)
+  //console.log(`Got message! ${JSON.stringify(e.data)}`)
   if(e.data[0] === "connectSerial") {
     if (!port) {
       try {
@@ -77,21 +98,24 @@ onmessage = async (e) => {
       await port.close()
       port = null
     }
-  } else if(e.data[0] === "writeToSerial") {
-    if (writer) {
-      const lines = e.data[1]
-      lines.forEach(line => {
-        console.log('[OSR][SEND]', line, '\n')
-        writer.write(line + '\n')
-      })
-    } else {
-      console.warn('[OSR][WARN] Disconnected, skipping stream write')
+  } else if(e.data[0] === "setMosaSettings") {
+    console.log(`setMosaSettings: ${JSON.stringify(e.data)}`)
+    mosaSettings = e.data[1]
+  } else if(e.data[0] === "commandRobot") {
+    let newTarget = e.data[1]
+    commandRobot(newTarget, e.data[2])
+    if(!targetHasChanged) {
+      for(let a of Object.keys(newTarget)) {
+        if(newTarget[a] !== target[a]) {
+          targetHasChanged = true
+          break
+        }
+      }
     }
-  } else if(e.data[0] === "setTarget") {
-    if(JSON.stringify(e.data[1]) !== JSON.stringify(target)) {
-      target = e.data[1]
-      targetHasChanged = true
-    }
+    target = { ...target, ...e.data[1] }
+  } else if(e.data[0] === "createNewPort") {
+    const port = e.data[1]
+    port.onmessage = onmessage
   }
 }
 

@@ -1,3 +1,5 @@
+let contextWorkerPort = {}
+
 let last_video_element_time = 0
 let last_performance_now_time = 0
 let timers_delta = 0
@@ -9,6 +11,11 @@ let parameters = {
   moving_pauses: false,
   latency: 0,
 }
+
+const time_window = 150
+let position = { "L0": 500 }
+let script_offsets = {}
+let moving_pause_start = 0
 
 onmessage = async (e) => {
   // console.log("Got message! " + e.data)
@@ -34,7 +41,14 @@ onmessage = async (e) => {
     console.log(`smoothed time: ${current_msecs}, timers_delta: ${timers_delta}`)
   } else if(e.data[0] === "updateParameters") {
     console.log(`updated parameters: ${JSON.stringify(e.data[1])}`)
+    if(e.data[1]["funscripts"]) {
+      script_offsets = {}
+      for(let axis in e.data[1]["funscripts"]) script_offsets[axis] = 0
+      position = { "L0": 500 }
+    }
     parameters = { ...parameters, ...e.data[1] }
+  } else if(e.data[0] === "setContextPort") {
+    contextWorkerPort = e.data[1]
   }
 }
 
@@ -43,11 +57,6 @@ function clampedFloat(x, min, max) {
   if(x > max) return max
   return x
 }
-
-const time_window = 150
-let position = { "L0": 500 }
-let script_offsets = {}
-let moving_pause_start = 0
 
 function doLoop() {
   let performance_now_time = Math.floor(performance.now())
@@ -61,10 +70,10 @@ function doLoop() {
   const funscripts = parameters.funscripts
   if (parameters.running) {
     next_call_delta_time = next_call_delta_time * parameters.playback_rate
-    current_msecs = current_msecs - parameters.latency * parameters.playback_rate + time_window * parameters.playback_rate;
-    let next_msecs = current_msecs + time_window * parameters.playback_rate;
+    current_msecs = current_msecs - parameters.latency * parameters.playback_rate + time_window * parameters.playback_rate
+    let next_msecs = current_msecs + time_window * parameters.playback_rate
+    position = { "L0": position["L0"] }
     let delta_times = {}
-    for(let tmp_p in position) delta_times[tmp_p] = time_window
     for(let axis in funscripts) {
       try {
         if(funscripts[axis] === undefined) continue
@@ -87,6 +96,7 @@ function doLoop() {
         if(next_offset >= actions.length) {
           // current time is after the end of the funscript
           next_offset = prev_offset;
+          continue
         }
         if(actions[prev_offset]["at"] > current_msecs) {
           // current time is before the start of the funscript
@@ -160,14 +170,17 @@ function doLoop() {
         }
 
         // if(axis === "L0") console.log(`${prev_offset} ${where_in_interval} ${mid_val} ${prev_val} ${next_val}`);
-        position[axis] = Math.floor(mid_val);
+        position[axis] = Math.floor(mid_val)
         script_offsets[axis] = prev_offset
       } catch(e) {
         console.log(e);
       }
     }
-    console.log(JSON.stringify({"pos": position, "delta": delta_times}))
-    //TODO commandRobot(position, delta_times);
+    //console.log(JSON.stringify({"pos": position, "delta": delta_times}))
+    for(let axis in position) {
+      if(delta_times[axis] === undefined) delta_times[axis] = time_window
+    }
+    contextWorkerPort.postMessage(["commandRobot", position, delta_times])
     let time_elapsed = performance.now() - performance_now_time
     //console.log(`performance_now_time ${performance_now_time}, current_msecs ${Math.floor(current_msecs)}, time_elapsed ${time_elapsed}, delta ${Math.floor(next_call_delta_time)}, L0offset ${script_offsets["L0"]}`)
     next_call_delta_time = Math.max(1, next_call_delta_time - time_elapsed)  // correct next call delta for runtime

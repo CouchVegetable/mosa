@@ -1,7 +1,7 @@
-import { clampedNum } from './clamp'
+self.importScripts('../utils/clamp.js')
 
 // constructs tcode strings for channel/value combos (0 <= value <= 0.999)
-export const tCode = (channel, value) => {
+const tCode = (channel, value) => {
   if (value < 0) value = 0
   if (value > 999) value = 999
   const scaledValue = Math.floor(value)
@@ -10,7 +10,7 @@ export const tCode = (channel, value) => {
 }
 
 // assumes interval in seconds, convert to tcode string
-export const intervalTCode = interval => {
+const intervalTCode = interval => {
   // convert interval to 1-9999 ms
   const millisecondInterval = clampedNum(Math.floor(interval * 1000), 1, 9999)
   const paddedInterval = String(millisecondInterval).padStart(4, '0')
@@ -18,7 +18,7 @@ export const intervalTCode = interval => {
 }
 
 // return tcode for all supplied axes in destination, with interval if supplied
-export const constructTCodeCommand = (destination, interval) => {
+const constructTCodeCommand = (destination, interval) => {
   // create tcode for each axis we have
   let commands = {}
   if (typeof interval === 'object') {
@@ -37,7 +37,7 @@ export const constructTCodeCommand = (destination, interval) => {
 }
 
 // given axial movement and output range, scales outputs to the range
-export const scaleAxes = (axes, outputRange) => {
+const scaleAxes = (axes, outputRange) => {
   const {
     L0Min,
     L0Max,

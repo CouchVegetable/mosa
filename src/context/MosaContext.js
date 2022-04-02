@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react'
 import { defaultRange, defaultTarget } from '../config/defaults'
-import { scaleAxes, constructTCodeCommand } from '../utils/tcode'
 
 export const MosaContext = React.createContext({
   settings: defaultRange,
@@ -8,13 +7,15 @@ export const MosaContext = React.createContext({
   inputMethod: 'web',
 })
 
+// create web worker
+let mosaContextWorker = new Worker((window.location.pathname.startsWith("/mosa/") ? "/mosa/" : "/") + "worker/mosaContextWorker.js")  // see static/worker/mosaContextWorker.js
+
 export const MosaProvider = ({ children }) => {
   const isSerialAvailable =
     typeof window !== 'undefined' && 'serial' in navigator // https://github.com/gatsbyjs/gatsby/issues/6859
 
   const [mosaSettings, setMosaSettings] = useState(defaultRange)
 
-  const [mosaContextWorker, setMosaContextWorker] = useState()
   const [connected, setConnected] = useState(false)
   const [target, setTarget] = useState(defaultTarget)
 
@@ -62,20 +63,17 @@ export const MosaProvider = ({ children }) => {
     // once, on load, try to load settings from localStorage
     // if we can't find them, create them in localStorage
     // we can store strings, not objects, in localstorage
-    const existingMosaSettings = JSON.parse(
+    let _mosaSettings = JSON.parse(
       localStorage.getItem('mosaSettings')
     )
-    if (existingMosaSettings) {
-      setMosaSettings(existingMosaSettings)
-    } else {
-      setMosaSettings(defaultRange)
+    if (!_mosaSettings) {
+      _mosaSettings = defaultRange
       // we can store strings, not objects, in localstorage
       localStorage.setItem('mosaSettings', JSON.stringify(defaultRange))
     }
+    setMosaSettings(_mosaSettings)
 
-    // create web worker
-    let mcWorker = new Worker((window.location.pathname.startsWith("/mosa/") ? "/mosa/" : "/") + "worker/mosaContextWorker.js")  // see static/worker/mosaContextWorker.js
-    mcWorker.onmessage = (e) => {
+    mosaContextWorker.onmessage = (e) => {
       if(e.data[0] === "targetUpdate") {
         // the worker updates the robot target periodically
         // this decoupling allows to update the robot target without triggering rerenders excessively
@@ -84,12 +82,14 @@ export const MosaProvider = ({ children }) => {
         setTarget(newTarget)
       }
     }
-    mcWorker.postMessage(["setTarget",  target])
-    setMosaContextWorker(mcWorker)
+
+    mosaContextWorker.postMessage(["setMosaSettings", _mosaSettings])
+    mosaContextWorker.postMessage(["commandRobot",  target, 0.5])
   }, [setMosaSettings])
 
   const updateSettings = newSettings => {
     setMosaSettings(newSettings)
+    mosaContextWorker.postMessage(["setMosaSettings", newSettings])
     localStorage.setItem('mosaSettings', JSON.stringify(newSettings))
   }
 
@@ -105,27 +105,21 @@ export const MosaProvider = ({ children }) => {
       // TODO: set error state, create/catch via error boundary?
     }
   }
+
   const handleDisconnectFromSerial = async () => {
     commandRobot(defaultTarget, 1, defaultRange)
     mosaContextWorker.postMessage(["disconnectSerial"])
     setConnected(false)
   }
 
-  const commandRobot = (destination, interval) => {
-    mosaContextWorker.postMessage(["setTarget", destination])
+  const getMosaContextWorkerPort = () => {
+    const channel = new MessageChannel()
+    mosaContextWorker.postMessage(["createNewPort", channel.port1], [channel.port1])
+    return channel.port2
+  }
 
-    const scaledDestination = scaleAxes(destination, mosaSettings)
-    const command = constructTCodeCommand(scaledDestination, interval)
-    switch (outputMethod) {
-      case 'serial':
-        mosaContextWorker.postMessage(["writeToSerial", [command]])
-        break
-      case 'visualizer':
-        console.log('[OSR][DEV] Output to vis: ' + command)
-        break
-      default:
-        console.warn('[OSR][DEV] unknown output method - command: ' + command)
-    }
+  const commandRobot = (destination, interval) => {
+    mosaContextWorker.postMessage(["commandRobot", destination, interval])
   }
 
   return (
@@ -134,6 +128,7 @@ export const MosaProvider = ({ children }) => {
         isSerialAvailable: isSerialAvailable,
         connected: connected,
         commandRobot: commandRobot,
+        getMosaContextWorkerPort: getMosaContextWorkerPort,
         target: target,
         inputMethod: inputMethod,
         handleInputMethodChange,

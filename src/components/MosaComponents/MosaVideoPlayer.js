@@ -55,13 +55,12 @@ const Canvas = props => {
 const worker = new Worker((window.location.pathname.startsWith("/mosa/") ? "/mosa/" : "/") + "worker/mosaVideoPlayerWorker.js")  // see static/worker/mosaVideoPlayerWorker.js
 
 export const MosaVideoPlayer = props => {
-  const { connected } = props
+  const { connected, getMosaContextWorkerPort } = props
 
   const [current_file, setCurrentFile] = useState("none")
   const [video_files, setVideoFiles] = useState([])
   const [local_video_files, setLocalVideoFiles] = useState({})
 
-  const [running, setRunning] = useState(false)
   const [moving_pauses, setMovingPauses] = useState(false)
   const [moving_pause_start, setMovingPauseStart] = useState(0)
 
@@ -88,12 +87,6 @@ export const MosaVideoPlayer = props => {
       setCurrentFile(filename)
       setFunscripts(funscripts)
       worker.postMessage(["updateParameters", { funscripts: funscripts }])
-      /* TODO
-      script_offsets.current = {}
-      for(let axis in funscripts) script_offsets.current[axis] = 0
-      position.current = {}
-      for(let axis in funscripts) if(funscripts[axis] !== undefined) position.current[axis] = 500
-      */
       let video = document.getElementById("idvideo")
       video.play();
       video.ondurationchange = (e) => {
@@ -192,7 +185,6 @@ export const MosaVideoPlayer = props => {
       setFunscripts(tmp)
       worker.postMessage(["updateParameters", { funscripts: funscripts }])
       console.log(`created funscript file ${axis}`)
-      //TODO script_offsets.current[axis] = 0
     }
     setEditingAxis(axis)
   }
@@ -238,9 +230,8 @@ export const MosaVideoPlayer = props => {
     return () => window.removeEventListener("keydown", keydownListener, true)
   })
 
-  const toggleRunning = running => {
-    worker.postMessage(["updateParameters", { running: !running }])
-    setRunning(!running)
+  const setRunning = running => {
+    worker.postMessage(["updateParameters", { running: running }])
   }
 
   const downloadEditingScript = () => {
@@ -267,14 +258,19 @@ export const MosaVideoPlayer = props => {
           (error) => { alert("Could not load list of video files"); }
     )
   }, [])
-  
+
+  useEffect(() => {
+    const port = getMosaContextWorkerPort()
+    worker.postMessage(["setContextPort", port], [port])
+  }, [])
+
   let stle = {position: 'absolute', marginLeft: '399px', width: '2px', height: '100px', backgroundColor: 'grey'}
   const result = useMemo(() => (
     <Card>
       <CardContent>
         <Typography variant="h5">Video</Typography>
         <hr />
-        <video id="idvideo" width="100%" controls>
+        <video id="idvideo" width="100%" onPlay={() => setRunning(true)} onPause={() => setRunning(false)} controls>
         </video>
         {editing_axis !== "none" ? <div style={stle}/> : ""}
         {editing_axis !== "none" ? <Canvas vpos={video_position} funscripts={funscripts} axis={editing_axis} totalTime={video_length}></Canvas> : ""}
@@ -351,17 +347,8 @@ export const MosaVideoPlayer = props => {
               />
           }
       />
-      <CardActions>
-        <Button
-          onClick={() => toggleRunning(running)}
-          variant="contained"
-          color="default"
-        >
-          {running ? 'STOP' : 'START'}
-        </Button>
-      </CardActions>
     </Card>
-    ), [connected, current_file, video_files, running, moving_pauses,
+    ), [connected, current_file, video_files, moving_pauses,
         video_length, video_position, video_speed, latency, funscripts, editing_axis]
   );
   return result;

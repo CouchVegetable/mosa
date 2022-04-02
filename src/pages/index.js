@@ -24,6 +24,7 @@ const IndexPage = () => {
         isSerialAvailable,
         connected,
         commandRobot,
+        getMosaContextWorkerPort,
         target,
         inputMethod,
         handleInputMethodChange,
@@ -124,7 +125,7 @@ const IndexPage = () => {
               <MosaVideoPlayer
                 connected={connected}
                 target={target}
-                commandRobot={commandRobot}
+                getMosaContextWorkerPort={getMosaContextWorkerPort}
               />
               <hr />
               <MosaSineControl
