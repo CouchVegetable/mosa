@@ -31,6 +31,7 @@ onmessage = async (e) => {
       // timers are out of sync, just reset, probably user skipped/paused video
       timers_delta = performance_now_time - video_element_time
       console.log("Video timer out of sync, resetting")
+      if(contextWorkerPort.postMessage) contextWorkerPort.postMessage(["enableTempSmoothing"])
     } else if(Math.abs(delta_delta) > 12) {
       // some difference, skew delta a bit to correct
       timers_delta = timers_delta + (delta_delta > 0 ? +1 : -1)
@@ -41,6 +42,7 @@ onmessage = async (e) => {
     console.log(`smoothed time: ${current_msecs}, timers_delta: ${timers_delta}`)
   } else if(e.data[0] === "updateParameters") {
     console.log(`updated parameters: ${JSON.stringify(e.data[1])}`)
+    if(e.data[1]["running"]) contextWorkerPort.postMessage(["enableTempSmoothing"])
     if(e.data[1]["funscripts"]) {
       script_offsets = {}
       for(let axis in e.data[1]["funscripts"]) script_offsets[axis] = 0
@@ -87,6 +89,7 @@ function doLoop() {
           // current_msecs jumped back, video probably got rewound.
           console.log(`${axis}: Retracing current funscript event (did the video skip?)`)
           prev_offset = 0;
+          contextWorkerPort.postMessage(["enableTempSmoothing"])
         }
         // look for the first offset that's after current_msecs
         let next_offset = prev_offset + 1;

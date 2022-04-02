@@ -12,6 +12,8 @@ let mosaSettings = {}
 let target = {}
 let targetHasChanged = true
 
+let smoothingUntil = 0
+
 // serial handling info:
 // thanks to https://github.com/WICG/serial/blob/gh-pages/EXPLAINER.md
 //         & https://codelabs.developers.google.com/codelabs/web-serial/
@@ -41,6 +43,17 @@ writeToSerial = (lines) => {
 }
 
 commandRobot = (destination, interval) => {
+  const smoothingForSecs = (smoothingUntil - performance.now()) / 1000
+  if(smoothingForSecs > 0) {
+    console.log(`Smoothing movement, ${smoothingForSecs} secs remaining`)
+    if (typeof interval === 'object') {
+      for(let axis of Object.keys(interval)) {
+        interval[axis] = interval[axis] < smoothingForSecs ? smoothingForSecs : interval[axis]
+      }
+    } else {
+      interval = interval < smoothingForSecs ? smoothingForSecs : interval
+    }
+  }
   const scaledDestination = scaleAxes(destination, mosaSettings)
   const command = constructTCodeCommand(scaledDestination, interval)
   if(writer) writeToSerial([command])
@@ -113,6 +126,9 @@ onmessage = async (e) => {
       }
     }
     target = { ...target, ...e.data[1] }
+  } else if(e.data[0] === "enableTempSmoothing") {
+    console.log("Enabling temp movement smoothing")
+    smoothingUntil = performance.now() + 1000
   } else if(e.data[0] === "createNewPort") {
     const port = e.data[1]
     port.onmessage = onmessage
