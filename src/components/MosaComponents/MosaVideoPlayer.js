@@ -141,7 +141,7 @@ export const MosaVideoPlayer = props => {
 
   async function openLocalFolder() {
     if(!window.hasOwnProperty("showDirectoryPicker")) {
-      window.alert("Your browser does not support the File Syste API")
+      window.alert("Your browser does not support the File System API")
       return
     }
     const dirHandle = await window.showDirectoryPicker()

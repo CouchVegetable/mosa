@@ -67,11 +67,6 @@ const IndexPage = () => {
                     )}
                     <ToggleButton value="visualizer">SR-VIS</ToggleButton>
                   </ToggleButtonGroup>
-                  <br />
-                  <br />
-                  <Typography variant="caption">
-                    (more I/O coming soon)
-                  </Typography>
                   {!isSerialAvailable && ( // if serial not available, explain
                     <>
                       <br />

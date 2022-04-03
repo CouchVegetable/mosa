@@ -34,6 +34,19 @@ const TestBedPage = () => {
           <SEO title="Videoscript" />
           <Grid container spacing={2} justify="center">
             <Grid item xs={4} md={4} lg={3}>
+              <MosaOutputRangeControl
+                settings={settings}
+                updateSettings={updateSettings}
+              />
+            </Grid>
+            <Grid item xs={8}>
+              <MosaVideoPlayer
+                connected={connected}
+                commandRobot={commandRobot}
+                getMosaContextWorkerPort={getMosaContextWorkerPort}
+              />
+            </Grid>
+            <Grid item xs={4}>
               <Card>
                 <CardContent>
                   <Typography>
@@ -64,11 +77,6 @@ const TestBedPage = () => {
                     )}
                     <ToggleButton value="visualizer">SR-VIS</ToggleButton>
                   </ToggleButtonGroup>
-                  <br />
-                  <br />
-                  <Typography variant="caption">
-                    (more I/O coming soon)
-                  </Typography>
                   {!isSerialAvailable && ( // if serial not available, explain
                     <>
                       <br />
@@ -87,30 +95,17 @@ const TestBedPage = () => {
                 </CardContent>
               </Card>
             </Grid>
-            <Grid item xs={8}>
-              <MosaVideoPlayer
-                connected={connected}
-                commandRobot={commandRobot}
-                getMosaContextWorkerPort={getMosaContextWorkerPort}
-              />
-            </Grid>
-            <Grid item xs={4} md={4} lg={3}>
-              <MosaOutputRangeControl
-                settings={settings}
-                updateSettings={updateSettings}
-              />
-            </Grid>
-            <Grid item xs={4} md={4} lg={5}>
+            <Grid item xs={4}>
               <MosaVisualizer target={target} />
-              <hr />
-              <MosaMotionControl
+              <hr/>
+              <MosaVibeControl
                 connected={connected}
                 target={target}
                 commandRobot={commandRobot}
               />
             </Grid>
-            <Grid item xs={4} md={4} lg={4}>
-              <MosaVibeControl
+            <Grid item xs={4}>
+              <MosaMotionControl
                 connected={connected}
                 target={target}
                 commandRobot={commandRobot}
