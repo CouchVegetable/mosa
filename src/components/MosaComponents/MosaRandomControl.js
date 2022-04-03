@@ -1,4 +1,4 @@
-import React, { useRef, useMemo, useState } from 'react'
+import React, { useMemo, useState, useCallback, useEffect } from 'react'
 import {
   Button,
   Card,
@@ -11,68 +11,33 @@ import {
   Typography,
 } from '@material-ui/core'
 
-import { useTimeout } from '../../hooks/useTimeoutHook'
 import { chooseRandomStroke } from '../../utils/random'
 
 import { strokes } from '../../config/strokes'
 
+let mosaRandomControlWorker = new Worker((window.location.pathname.startsWith("/mosa/") ? "/mosa/" : "/") + "worker/mosaRandomControlWorker.js")  // see static/
+
+let lastTarget = undefined
+
 export const MosaRandomControl = props => {
-  const { connected, target, commandRobot } = props
+  const { connected, target, getMosaContextWorkerPort } = props
 
   const [running, setRunning] = useState(false)
   const [availableStrokes, setAvailableStrokes] = useState(strokes) // start with all strokes enabled by default
 
-  const [timer, setTimer] = useState(0) // start with no seconds on the clock
-  const strokeStartTime = useRef(0)
+  const [timer, setTimer] = useState(0)
   const [step, setStep] = useState(50)
   const [speed, setSpeed] = useState(100)
   const [randomness, setRandomness] = useState(30)
-  const [strokeType, setStrokeType] = useState(
-    chooseRandomStroke(availableStrokes)
-  ) // todo: refactor this
-  const [stroke, setStroke] = useState(strokeType.getStroke(target, step))
-  const [strokeCounter, setStrokeCounter] = useState(0)
-
-  useTimeout(() => {
-    const start_time = performance.now()
-    if (running && connected) {
-      if (timer <= 0) {
-        // do we change stroke?
-        const newStrokeType =
-          Math.random() * 100 < randomness
-            ? chooseRandomStroke(availableStrokes) // todo: refactor this
-            : strokeType
-
-        const stroke = newStrokeType.getStroke(target, speed/100, step)
-        const newTimer = step * stroke.Length // derive next timing from length of stroke
-
-        setStrokeType(newStrokeType)
-        setStroke(stroke)
-        setTimer(newTimer) // add time to the timer
-        strokeStartTime.current = start_time
-        setStrokeCounter(strokeCounter + 1)
-      } else {
-        // execute the next stroke step
-        let curStepNr = Math.floor((performance.now() - strokeStartTime.current) / step)
-        curStepNr = curStepNr < stroke.length ? curStepNr : stroke.length - 1
-        const destination = stroke[curStepNr]
-        commandRobot(destination, step / 1000)
-        const next_timer = step * (stroke.length - curStepNr - 1)
-        setTimer(next_timer)
-      }
-      const delta_to_next_call = Math.max(step - (performance.now() - start_time), 1)
-      console.log(start_time + " " + delta_to_next_call)
-      return delta_to_next_call
-    }
-    return 100 // wait 100ms in case we're idle
-  }, 10)
+  const [strokeName, setStrokeName] = useState("")
+  const [strokeType, setStrokeType] = useState(undefined)
 
   const toggleRunning = running => {
-    running ? setTimer(0) : setStrokeCounter(0)
     setRunning(!running)
+    mosaRandomControlWorker.postMessage(["running", !running])
   }
 
-  const handleStrokeChange = e => {
+  const handleStrokeChange = useCallback(e => {
     setAvailableStrokes({
       ...availableStrokes,
       [e.target.value]: {
@@ -80,11 +45,55 @@ export const MosaRandomControl = props => {
         enabled: e.target.checked,
       },
     })
-  }
+  }, [availableStrokes])
+  
+  const enqueueNextStroke = useCallback( () => {
+    if (running && connected) {
+      const newStrokeType =
+        Math.random() * 100 < randomness || strokeType === undefined
+          ? chooseRandomStroke(availableStrokes)
+          : strokeType
+      setStrokeType(newStrokeType)
+
+      let actions = newStrokeType.getStroke(lastTarget, speed/100, step)
+      lastTarget = { ...lastTarget, ...actions.slice(-1)[0] }  // new actions might not use all axes
+      let strokePars = {
+        "name": newStrokeType.name,
+        "step": step,
+        "speed": speed,
+        "actions": actions,
+      }
+      mosaRandomControlWorker.postMessage(["addStroke", strokePars])
+    }
+  }, [connected, running, availableStrokes, randomness, speed, step, strokeType])
+
+  useEffect(() => {
+    //console.log("SETTING WORKER CALLBACK")
+    mosaRandomControlWorker.onmessage = (e) => {
+      if(e.data[0] === "progressUpdate") {
+        let remaining_time = e.data[1]
+        setTimer(remaining_time)
+        if(e.data[2] !== "") setStrokeName(e.data[2])
+        if(e.data[3]) enqueueNextStroke()
+      } else {
+        console.error(`Unknown message: ${JSON.stringify(e.data)}`)
+      }
+    }
+  }, [setTimer, setStrokeName, enqueueNextStroke])
+
+  useEffect(() => {
+    //console.log("SENDING SETCONTEXTPORT")
+    const port = getMosaContextWorkerPort()
+    mosaRandomControlWorker.postMessage(["setContextPort", port], [port])
+  }, [])
+
+  useEffect(() => {
+    if(!lastTarget) lastTarget = target
+  }, [target])
 
   const cachedPortion = useMemo(() => (
       <CardContent>
-        <Typography variant="h5">Random: {strokeType.name}</Typography>
+        <Typography variant="h5">Random: {strokeName}</Typography>
         <hr />
         <Typography>Change Stroke: {randomness}%</Typography>
         <Slider
@@ -135,7 +144,7 @@ export const MosaRandomControl = props => {
           })}
         </FormGroup>
       </CardContent>
-  ), [running, strokeType, randomness, speed, step, availableStrokes])
+  ), [running, randomness, speed, step, availableStrokes, handleStrokeChange, strokeName])
 
   return (
     <Card>
@@ -152,7 +161,6 @@ export const MosaRandomControl = props => {
         <Typography>
           Next: {(timer >= 0 ? timer / 1000 : 0).toFixed(1)}s
         </Typography>
-        <Typography>-- Stroke #{strokeCounter}</Typography>
       </CardActions>
     </Card>
   )

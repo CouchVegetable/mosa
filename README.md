@@ -14,6 +14,7 @@ New features
   - 0 to delete events from 1500ms in the past up to 1500ms in the future, then skip back 3000ms ("quick fix")
   - change playback speed (via dropdown box or QWERT keys)
   - download and save script when done
+- reduced latency by using web workers
 - new random movement features
   - speed adjustment in random movement
   - new "Doubles sines" random movement

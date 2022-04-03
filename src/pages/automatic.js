@@ -22,6 +22,7 @@ const AutomaticPage = () => {
       {({
         isSerialAvailable,
         connected,
+        getMosaContextWorkerPort,
         commandRobot,
         target,
         inputMethod,
@@ -95,7 +96,7 @@ const AutomaticPage = () => {
               <MosaRandomControl
                 connected={connected}
                 target={target}
-                commandRobot={commandRobot}
+                getMosaContextWorkerPort={getMosaContextWorkerPort}
               />
               <hr />
               <MosaSineControl

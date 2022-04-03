@@ -114,7 +114,7 @@ const IndexPage = () => {
               <MosaRandomControl
                 connected={connected}
                 target={target}
-                commandRobot={commandRobot}
+                getMosaContextWorkerPort={getMosaContextWorkerPort}
               />
               <hr />
               <MosaVideoPlayer
