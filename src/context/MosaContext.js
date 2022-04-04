@@ -8,7 +8,7 @@ export const MosaContext = React.createContext({
 })
 
 // create web worker
-let mosaContextWorker = new Worker((window.location.pathname.startsWith("/mosa/") ? "/mosa/" : "/") + "worker/mosaContextWorker.js")  // see static/worker/mosaContextWorker.js
+let mosaContextWorker = typeof window !== "undefined" ? new Worker((window.location.pathname.startsWith("/mosa/") ? "/mosa/" : "/") + "worker/mosaContextWorker.js") : undefined // see static/worker/mosaContextWorker.js
 
 export const MosaProvider = ({ children }) => {
   const isSerialAvailable =

@@ -17,7 +17,7 @@ let script_offsets = {}
 let moving_pause_start = 0
 
 onmessage = async (e) => {
-  // console.log("Got message! " + e.data)
+  //console.log(`VideoPlayerWorker got message! ${JSON.stringify(e.data)}`)
   if(e.data[0] === "videoElementTimeMs") {
     // video element currentTime isn't 100% accurate (based on current frame?)
     // in testing, for 100ms intervals, it is often off by +-10ms.

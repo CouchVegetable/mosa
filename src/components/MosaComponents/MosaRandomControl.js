@@ -15,7 +15,7 @@ import { chooseRandomStroke } from '../../utils/random'
 
 import { strokes } from '../../config/strokes'
 
-let mosaRandomControlWorker = new Worker((window.location.pathname.startsWith("/mosa/") ? "/mosa/" : "/") + "worker/mosaRandomControlWorker.js")  // see static/
+let mosaRandomControlWorker = typeof window !== "undefined" ? new Worker((window.location.pathname.startsWith("/mosa/") ? "/mosa/" : "/") + "worker/mosaRandomControlWorker.js") : undefined // see static/
 
 let lastTarget = undefined
 

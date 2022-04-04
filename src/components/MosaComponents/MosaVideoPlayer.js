@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Button,
   Card,
-  CardActions,
   CardContent,
   FormControlLabel,
   MenuItem,
@@ -11,9 +10,6 @@ import {
   Switch,
   Typography,
 } from '@material-ui/core'
-
-import { useTimeout } from '../../hooks/useTimeoutHook'
-import { clampedFloat, clampedNum } from '../../utils/clamp'
 
 const Canvas = props => {
   const { funscripts, axis, totalTime, vpos, ...rest } = props
@@ -52,7 +48,7 @@ const Canvas = props => {
 }
 
 // create web worker
-const worker = new Worker((window.location.pathname.startsWith("/mosa/") ? "/mosa/" : "/") + "worker/mosaVideoPlayerWorker.js")  // see static/worker/mosaVideoPlayerWorker.js
+const worker = typeof window !== "undefined" ? new Worker((window.location.pathname.startsWith("/mosa/") ? "/mosa/" : "/") + "worker/mosaVideoPlayerWorker.js") : undefined // see static/worker/mosaVideoPlayerWorker.js
 
 export const MosaVideoPlayer = props => {
   const { connected, getMosaContextWorkerPort } = props
@@ -62,14 +58,12 @@ export const MosaVideoPlayer = props => {
   const [local_video_files, setLocalVideoFiles] = useState({})
 
   const [moving_pauses, setMovingPauses] = useState(false)
-  const [moving_pause_start, setMovingPauseStart] = useState(0)
 
   const [video_length, setVideoLength] = useState(0)
   const [video_position, setVideoPosition] = useState(0)
   const [video_speed, setVideoSpeed] = useState("100")
   const [latency, setLatency] = useState(0)
 
-  const position = useRef({})
   const [funscripts, setFunscripts] = useState({})
 
   const [editing_axis, setEditingAxis] = useState("none")
